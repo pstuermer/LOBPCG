@@ -1,18 +1,25 @@
 #ifndef LOBPCG_H
 #define LOPBCG_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <complex.h>
-#include <stdint.h>
+#include "types.h"
 
-typedef float f32;
-typedef double f64;
-typedef complex c32;
-typedef double complex c64;
+#define DECLARE_GET_RESIDUAL(prefix, type, linop) \
+  void prefix##_get_residual(const uint64_t, const uin64_t, \
+		      type *, type *, type *, type*, linop *, linop*);
 
+TYPE_LIST(DECLARE_GET_RESIDUAL)
+#undef DECLARE_GET_RESIDUAL
+
+#define get_residual(size, sizeSub, X, R, eigVal, wrk, A, B) \
+  _Generic((X), \
+    f32 *: s_get_residual, \
+    f64 *: d_get_residual, \
+    c32 *: c_get_residual, \
+    c64 *: z_get_residual, \
+	   )(size, sizeSub, X, R, eigVal, wrk, A, B)
+#endif
+
+/*  
 // forward declare
 struct linop_ctx_t;
 struct lobpcg_t
@@ -90,9 +97,9 @@ DEFINE_LOBPCG(c64, f64, z)
     alg->size = size;							\
     alg->sizeSub = sizeSub;						\
     alg->nev = nev;							\
-    alg->maxIter = maxIter;						\
-    alg->mult = mult;							\
-    /* need something for matmuls*/					\
+    alg->maxIter = maxIter;						\ 
+    alg->mult = mult;							\*/
+/* need something for matmuls*//*					\
   }									\
 
 
@@ -131,9 +138,9 @@ void zget_residual(const uint64_t size, const uint64_t sizeSub,
   // A*X
   linop_apply_z(A, X, R);
 
-  // X*eigVal
+  // X*eigVal*/
   /* need to change this for ColMajor instead of RowMajor */
-  zgemm_NN(size, sizeSub, sizeSub, X, eigVal, wrk);
+/*  zgemm_NN(size, sizeSub, sizeSub, X, eigVal, wrk);
 
   if (B)
     linop_apply_z(B, wrk, NULL);
@@ -144,3 +151,4 @@ void zget_residual(const uint64_t size, const uint64_t sizeSub,
 
 
 #endif // LOBPCG_H
+*/
