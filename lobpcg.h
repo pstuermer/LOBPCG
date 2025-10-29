@@ -3,21 +3,103 @@
 
 #include "types.h"
 
-#define DECLARE_GET_RESIDUAL(prefix, type, linop) \
-  void prefix##_get_residual(const uint64_t, const uin64_t, \
-		      type *, type *, type *, type*, linop *, linop*);
+// still missing the struct and allocation and stuff
+
+#define DECLARE_LOBPCG(prefix, ctype, rtype, linop) \
+  void prefix##_lobpcg(lobpcg_##prefix##_t *);
+
+TYPE_LIST(DECLARE_LOBPCG)
+#undef DECLARE_LOBPCG
+
+#define lobpcg(alg) \
+  _Generic((alg),   \
+    lobpcg_s_t *: s_lobpcg, \
+    lobpcg_d_t *: d_lobpcg, \
+    lobpcg_c_t *: c_lobpcg, \
+	   lobpcg_z_t *: z_lobpcg		\
+	   )(alg)
+
+/* ------------------------------------------------------- */
+
+#define DECLARE_GET_RESIDUAL(prefix, ctype, rtype, linop)		\
+  void prefix##_get_residual(const uint64_t, const uint64_t,		\
+			     ctype *restrict, ctype *restrict,		\
+			     ctype *restrict, ctype *restrict,		\
+			     linop *, linop*);
 
 TYPE_LIST(DECLARE_GET_RESIDUAL)
 #undef DECLARE_GET_RESIDUAL
 
-#define get_residual(size, sizeSub, X, R, eigVal, wrk, A, B) \
-  _Generic((X), \
-    f32 *: s_get_residual, \
-    f64 *: d_get_residual, \
-    c32 *: c_get_residual, \
-    c64 *: z_get_residual, \
+#define get_residual(size, sizeSub, X, R, eigVal, wrk, A, B)	\
+  _Generic((X),							\
+	   f32 *: s_get_residual,				\
+	   f64 *: d_get_residual,				\
+	   c32 *: c_get_residual,				\
+	   c64 *: z_get_residual				\
 	   )(size, sizeSub, X, R, eigVal, wrk, A, B)
 #endif
+
+/* ------------------------------------------------------- */
+
+#define DECLARE_RESIDUAL_NORM(prefix, ctype, rtype, linop)		\
+  void prefix##_get_residual_norm(const uint64_t, const uint64_t, const uint64_t, \
+				  ctype *restrict, ctype *restrict, rtype *restrict, \
+				  ctype *restrict, ctype *restrict,	\
+				  const rtype, const rtype, linop*);
+
+TYPE_LIST(DECLARE_RESIDUAL_NORM)
+#undef
+
+#define get_residual_norm(size, sizeSub, nev, W, eigVals, resNorm, \
+			  wrk1, wrk2, wrk3, ANorm, Bnorm, B) \
+  _Generic((W),						     \
+    f32 *: s_get_residual_norm, \
+    f64 *: d_get_residual_norm, \
+    c32 *: c_get_residual_norm, \
+    c64 *: z_get_residual_norm \
+	   )(size, sizeSub, nev, W, eigVals, resNorm, wrk1, wrk2, \
+	     wrk3, Anorm, Bnorm, B)
+
+/* ------------------------------------------------------- */
+
+#define DECLARE_RAYLEIGH_RITZ(prefix, ctype, rtype, linop)	\
+  void prefix##_rayleigh_ritz(const uint64_t, const uint64_t,	\
+			      ctype *restrict, ctype *restrict, \
+			      ctype *restrict, ctype *restrict, \
+			      ctype *restrict, ctype *restrict, \
+			      linop *, linop *);
+
+TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
+#undef
+
+
+#define rayleigh_ritz(size, sizeSub, S, Cx, eigVal,	     \
+		      wrk1, wrk2, wrk3, A, B)		     \
+  _Generic((S),						     \
+	   f32 *: s_rayleigh_ritz,			     \
+	   f64 *: d_rayleigh_ritz,			     \
+	   c32 *: c_rayleigh_ritz,			     \
+	   c64 *: z_rayleigh_ritz			     \
+	   )(size, sizeSub, S, Cx, eigVal, wrk1, wrk2,	     \
+	     wrk3, A, B)
+
+/* ------------------------------------------------------------------------ */
+
+void zrayleigh_ritz_modified(const uint64_t, const uint64_t,
+			     const uint64_t, uint8_t *,
+			     f64, c64 *restrict, c64 *restrict,
+			     c64 *restrict, c64 *restrict,
+			     c64 *restrict, f64 *restrict,
+			     linop *, linop *);
+
+void zsvqb(const uint64_t, const uint64_t, const f64, const char,
+	   c64 *restrict, c64 *restrict, c64 *restrict, c64 *restrict,
+	   linop *);
+
+void zortho_drop(const uint64_t, const uint64_t, const uint64_t,
+		 const uint64_t, const f64, c64 *restrict,
+		 c64 *restrict, c64 *restrict, c64 *restrict,
+		 c64 *restrict, linop *);
 
 /*  
 // forward declare
