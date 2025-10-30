@@ -5,26 +5,27 @@
 
 // still missing the struct and allocation and stuff
 
-#define DECLARE_LOBPCG(prefix, ctype, rtype, linop) \
+/* -------------------------------------------------------------------- */
+#define DECLARE_LOBPCG(prefix, ctype, rtype, linop)	\
   void prefix##_lobpcg(lobpcg_##prefix##_t *);
 
 TYPE_LIST(DECLARE_LOBPCG)
 #undef DECLARE_LOBPCG
 
-#define lobpcg(alg) \
-  _Generic((alg),   \
-    lobpcg_s_t *: s_lobpcg, \
-    lobpcg_d_t *: d_lobpcg, \
-    lobpcg_c_t *: c_lobpcg, \
+#define lobpcg(alg)				\
+  _Generic((alg),				\
+	   lobpcg_s_t *: s_lobpcg,		\
+	   lobpcg_d_t *: d_lobpcg,		\
+	   lobpcg_c_t *: c_lobpcg,		\
 	   lobpcg_z_t *: z_lobpcg		\
 	   )(alg)
 
-/* ------------------------------------------------------- */
+/* -------------------------------------------------------------------- */
 
-#define DECLARE_GET_RESIDUAL(prefix, ctype, rtype, linop)		\
-  void prefix##_get_residual(const uint64_t, const uint64_t,		\
-			     ctype *restrict, ctype *restrict,		\
-			     ctype *restrict, ctype *restrict,		\
+#define DECLARE_GET_RESIDUAL(prefix, ctype, rtype, linop)     \
+  void prefix##_get_residual(const uint64_t, const uint64_t,  \
+			     ctype *restrict, ctype *restrict,\
+			     ctype *restrict, ctype *restrict,\
 			     linop *, linop*);
 
 TYPE_LIST(DECLARE_GET_RESIDUAL)
@@ -39,11 +40,12 @@ TYPE_LIST(DECLARE_GET_RESIDUAL)
 	   )(size, sizeSub, X, R, eigVal, wrk, A, B)
 #endif
 
-/* ------------------------------------------------------- */
+/* -------------------------------------------------------------------- */
 
 #define DECLARE_RESIDUAL_NORM(prefix, ctype, rtype, linop)		\
-  void prefix##_get_residual_norm(const uint64_t, const uint64_t, const uint64_t, \
-				  ctype *restrict, ctype *restrict, rtype *restrict, \
+  void prefix##_get_residual_norm(const uint64_t, const uint64_t,	\
+				  const uint64_t, ctype *restrict,	\
+				  ctype *restrict, rtype *restrict,	\
 				  ctype *restrict, ctype *restrict,	\
 				  const rtype, const rtype, linop*);
 
@@ -60,9 +62,9 @@ TYPE_LIST(DECLARE_RESIDUAL_NORM)
 	   )(size, sizeSub, nev, W, eigVals, resNorm, wrk1, wrk2, \
 	     wrk3, Anorm, Bnorm, B)
 
-/* ------------------------------------------------------- */
+/* -------------------------------------------------------------------- */
 
-#define DECLARE_RAYLEIGH_RITZ(prefix, ctype, rtype, linop)	\
+#define DECLARE_RR(prefix, ctype, rtype, linop)	\
   void prefix##_rayleigh_ritz(const uint64_t, const uint64_t,	\
 			      ctype *restrict, ctype *restrict, \
 			      ctype *restrict, ctype *restrict, \
@@ -83,14 +85,29 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 	   )(size, sizeSub, S, Cx, eigVal, wrk1, wrk2,	     \
 	     wrk3, A, B)
 
-/* ------------------------------------------------------------------------ */
+/* -------------------------------------------------------------------- */
 
-void zrayleigh_ritz_modified(const uint64_t, const uint64_t,
-			     const uint64_t, uint8_t *,
-			     f64, c64 *restrict, c64 *restrict,
-			     c64 *restrict, c64 *restrict,
-			     c64 *restrict, f64 *restrict,
-			     linop *, linop *);
+#define DECLARE_RR_MODIFIED(prefix, ctype, rtype, linop)		 \
+  void prefix##_rayleigh_ritz_modified(const uint64_t, const uint64_t,	 \
+				       const uint64_t, uint8_t *, rtype, \
+				       ctype *restrict, ctype *restrict, \
+				       ctype *restrict, ctype *restrict, \
+				       ctype *restrict, rtype *restrict, \
+				       linop *, linop *);
+TYPE_LIST(DECLARE_RR_MODIFIED)
+#undef
+// need to have something for the amount of locked values here
+#define rayleigh_ritz_modified(size, sizeSub, mult, useOrtho,	  \
+			       S, wrk1, wrk2, wrk3, Cx, Cp, A, B) \
+  _Generic((S),							  \
+    f32 *: s_rayleigh_ritz_modified,				  \
+    f64 *: d_rayleigh_ritz_modified,				  \
+    c32 *: c_rayleigh_ritz_modified,				  \
+    c64 *: z_rayleigh_ritz_modified				  \
+	   )(size, sizeSub, mult, useOrtho, S, wrk1, wrk2, wrk3,  \
+	     Cx, Cp, A, B)
+
+/* -------------------------------------------------------------------- */
 
 void zsvqb(const uint64_t, const uint64_t, const f64, const char,
 	   c64 *restrict, c64 *restrict, c64 *restrict, c64 *restrict,
