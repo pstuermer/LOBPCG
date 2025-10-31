@@ -3,7 +3,45 @@
 
 #include "types.h"
 
+// forward declare
+struct linop_ctx_t;
+struct lobpct_t;
+
 // still missing the struct and allocation and stuff
+#define LOBPCG_STRUCT(prefix, ctype, rtype, linop) \
+  typedef struct prefix##_lobpcg_t prefix##_lobpcg_t; \
+						      \
+  struct prefix##_lobpcg_t{			      \
+    ctype *restrict S;				      \
+    ctype *restrict Cx;				      \
+    ctype *restrict Cp;				      \
+						      \
+    ctype *restrict AS;				      \
+    ctype *restrict AB;				      \
+    						      \
+    ctype *restrict eigVals;			      \
+    rtype *restrict resNorm;			      \
+    						      \
+    ctype *restrict wrk1;			      \
+    ctype *restrict wrk2;			      \
+    ctype *restrict wrk3;			      \
+    ctype *restrict wrk4;			      \
+    						      \
+    uint64_t iter;				      \
+    uint64_t nev;				      \
+    uint64_t converged;				      \
+    uint64_t size;				      \
+    uint64_t sizeSub;				      \
+    uint64_t maxIter;				      \
+    						      \
+    rtype tol;					      \
+    						      \
+    struct LinearOperator_##prefix *A;		      \
+    struct LinearOperator_##prefix *B;		      \
+  }
+
+TYPE_LIST(LOBPCG_STRUCT)
+#undef
 
 /* -------------------------------------------------------------------- */
 #define DECLARE_LOBPCG(prefix, ctype, rtype, linop)	\
@@ -89,7 +127,8 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 
 #define DECLARE_RR_MODIFIED(prefix, ctype, rtype, linop)		 \
   void prefix##_rayleigh_ritz_modified(const uint64_t, const uint64_t,	 \
-				       const uint64_t, uint8_t *, rtype, \
+				       const uint64_t, const uint64_t,	 \
+				       uint8_t *, rtype,		 \
 				       ctype *restrict, ctype *restrict, \
 				       ctype *restrict, ctype *restrict, \
 				       ctype *restrict, rtype *restrict, \
@@ -97,7 +136,7 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 TYPE_LIST(DECLARE_RR_MODIFIED)
 #undef
 // need to have something for the amount of locked values here
-#define rayleigh_ritz_modified(size, sizeSub, mult, useOrtho,	  \
+#define rayleigh_ritz_modified(size, nx, nconv, ndrop, useOrtho,  \
 			       S, wrk1, wrk2, wrk3, Cx, Cp, A, B) \
   _Generic((S),							  \
     f32 *: s_rayleigh_ritz_modified,				  \
@@ -109,14 +148,46 @@ TYPE_LIST(DECLARE_RR_MODIFIED)
 
 /* -------------------------------------------------------------------- */
 
-void zsvqb(const uint64_t, const uint64_t, const f64, const char,
-	   c64 *restrict, c64 *restrict, c64 *restrict, c64 *restrict,
-	   linop *);
+#define DECLARE_SVQB(prefix, ctype, rtype, linop)		     \
+  uint64_t prefix##_svqb(const uint64_t, const uint64_t,	     \
+			 const rtype, const char, ctype *restrict,   \
+			 ctype *restrict, ctype *restrict,	     \
+			 ctype *restrict, linop *);
 
-void zortho_drop(const uint64_t, const uint64_t, const uint64_t,
-		 const uint64_t, const f64, c64 *restrict,
-		 c64 *restrict, c64 *restrict, c64 *restrict,
-		 c64 *restrict, linop *);
+TYPE_LIST(DECLARE_SVQB)
+#undef
+
+#define svqb(m, n_u, tau, drop, U, wrk1, wrk2, wrk3, B) \
+  _generic((U),							\
+    f32 *: s_svqb,						\
+    f64 *: d_svqb,						\
+    c32 *: c_svqb,						\
+    c64 *: z_svqb						\
+	   )(m, n_u, n_drop, tau, drop, U, wrk1, wrk2, wrk3, B)
+
+/* -------------------------------------------------------------------- */
+
+#define DECLARE_ORTHO_DROP(prefix, ctype, rtype, linop)			\
+  uint64_t prefix##_ortho_drop(const uint64_t, const uin64_t,		\
+			       const uint64_t, const rtype, const rtype	\
+			       ctype *restrict,	ctype *restrict,	\
+			       ctype *restrict, ctype *restrict,	\
+			       ctype *restrict, linop*);
+
+TYPE_LIST(DECLARE_ORTHO_DROP)
+#undef
+
+#define ortho_drop(m, n_u, n_v, eps_ortho, eps_drop, U, V, wrk1, wrk2,\
+		   wrk3, B)					      \
+  _Generic((U),							      \
+    f32 *: s_ortho_drop,					      \
+    f64 *: d_ortho_drop,					      \
+    c32 *: c_ortho_drop,					      \
+    c64 *: z_ortho_drop						      \
+	   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, wrk1, wrk2, \
+	     wrk3, B)
+
+/* -------------------------------------------------------------------- */
 
 /*  
 // forward declare
