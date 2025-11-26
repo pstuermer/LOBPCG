@@ -7,6 +7,12 @@
 struct linop_ctx_t;
 struct lobpct_t;
 
+// Forward declaration for linear operator types
+struct LinearOperator_s;
+struct LinearOperator_d;
+struct LinearOperator_c;
+struct LinearOperator_z;
+
 // still missing the struct and allocation and stuff
 #define LOBPCG_STRUCT(prefix, ctype, rtype, linop) \
   typedef struct prefix##_lobpcg_t prefix##_lobpcg_t; \
@@ -17,7 +23,7 @@ struct lobpct_t;
     ctype *restrict Cp;				      \
 						      \
     ctype *restrict AS;				      \
-    ctype *restrict AB;				      \
+    ctype *restrict BS;				      \
     						      \
     ctype *restrict eigVals;			      \
     rtype *restrict resNorm;			      \
@@ -36,14 +42,15 @@ struct lobpct_t;
     						      \
     rtype tol;					      \
     						      \
-    struct LinearOperator_##prefix *A;		      \
-    struct LinearOperator_##prefix *B;		      \
+    linop *A;					      \
+    linop *B;		      \
   }
 
 TYPE_LIST(LOBPCG_STRUCT)
 #undef
 
 /* -------------------------------------------------------------------- */
+
 #define DECLARE_LOBPCG(prefix, ctype, rtype, linop)	\
   void prefix##_lobpcg(lobpcg_##prefix##_t *);
 
@@ -58,34 +65,54 @@ TYPE_LIST(DECLARE_LOBPCG)
 	   lobpcg_z_t *: z_lobpcg		\
 	   )(alg)
 
-/* -------------------------------------------------------------------- */
 
-#define DECLARE_GET_RESIDUAL(prefix, ctype, rtype, linop)     \
-  void prefix##_get_residual(const uint64_t, const uint64_t,  \
-			     ctype *restrict, ctype *restrict,\
-			     ctype *restrict, ctype *restrict,\
-			     linop *, linop*);
+
+/* -------------------------------------------------------------------- 
+ * Function declarations: get_residual
+ * R = A*X - B*X*eigVal
+ * ------------------------------------------------------------------ */
+#define DECLARE_GET_RESIDUAL(prefix, ctype, rtype, linop)	\
+  void prefix##_get_residual(const uint64_t size,		\
+			     const uint64_t sizeSub,		\
+			     ctype *restrict X,			\
+			     ctype *restrict AX,		\
+			     ctype *restrict R,			\
+			     ctype *restrict eigVal,		\
+			     ctype *restrict wrk,		\
+			     linop *A,				\
+			     linop *B);
 
 TYPE_LIST(DECLARE_GET_RESIDUAL)
 #undef DECLARE_GET_RESIDUAL
 
-#define get_residual(size, sizeSub, X, R, eigVal, wrk, A, B)	\
+#define get_residual(size, sizeSub, X, AX, R, eigVal, wrk, A, B)\
   _Generic((X),							\
 	   f32 *: s_get_residual,				\
 	   f64 *: d_get_residual,				\
 	   c32 *: c_get_residual,				\
 	   c64 *: z_get_residual				\
-	   )(size, sizeSub, X, R, eigVal, wrk, A, B)
+	   )(size, sizeSub, X, AX, R, eigVal, wrk, A, B)
 #endif
 
-/* -------------------------------------------------------------------- */
 
-#define DECLARE_RESIDUAL_NORM(prefix, ctype, rtype, linop)		\
-  void prefix##_get_residual_norm(const uint64_t, const uint64_t,	\
-				  const uint64_t, ctype *restrict,	\
-				  ctype *restrict, rtype *restrict,	\
-				  ctype *restrict, ctype *restrict,	\
-				  const rtype, const rtype, linop*);
+
+/* -------------------------------------------------------------------- 
+ * Function declarations: get_residual_norm
+ * Compute relative residual norms
+ * ----------------------------------------------------------------- */
+#define DECLARE_RESIDUAL_NORM(prefix, ctype, rtype, linop)	\
+  void prefix##_get_residual_norm(const uint64_t size,		\
+				  const uint64_t sizeSub,	\
+				  const uint64_t nev,		\
+				  ctype *restrict W,		\
+				  ctype *restrict eigVals,	\
+				  rtype *restrict resNorm,	\
+				  ctype *restrict wrk1,		\
+				  ctype *restrict wrk2,		\
+				  ctype *restrict wrk3,		\
+				  const rtype ANorm,		\
+				  const rtype BNorm,		\
+				  linop *B);
 
 TYPE_LIST(DECLARE_RESIDUAL_NORM)
 #undef
@@ -100,14 +127,23 @@ TYPE_LIST(DECLARE_RESIDUAL_NORM)
 	   )(size, sizeSub, nev, W, eigVals, resNorm, wrk1, wrk2, \
 	     wrk3, Anorm, Bnorm, B)
 
-/* -------------------------------------------------------------------- */
 
-#define DECLARE_RR(prefix, ctype, rtype, linop)	\
-  void prefix##_rayleigh_ritz(const uint64_t, const uint64_t,	\
-			      ctype *restrict, ctype *restrict, \
-			      ctype *restrict, ctype *restrict, \
-			      ctype *restrict, ctype *restrict, \
-			      linop *, linop *);
+
+/* -------------------------------------------------------------------
+ * Function declarations: rayleigh_ritz
+ * Standard Rayleigh-Ritz procedure at start
+ * ----------------------------------------------------------------- */
+#define DECLARE_RAYLEIGH_RITZR(prefix, ctype, rtype, linop)	\
+  void prefix##_rayleigh_ritz(const uint64_t size,		\
+			      const uint64_t sizeSub,		\
+			      ctype *restrict S,		\
+			      ctype *restrict Cx,		\
+			      ctype *restrict eigVal,		\
+			      ctype *restrict wrk1,		\
+			      ctype *restrict wrk2,		\
+			      ctype *restrict wrk3,		\
+			      linop *A,				\
+			      linop *B);
 
 TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 #undef
@@ -123,16 +159,26 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 	   )(size, sizeSub, S, Cx, eigVal, wrk1, wrk2,	     \
 	     wrk3, A, B)
 
-/* -------------------------------------------------------------------- */
 
-#define DECLARE_RR_MODIFIED(prefix, ctype, rtype, linop)		 \
-  void prefix##_rayleigh_ritz_modified(const uint64_t, const uint64_t,	 \
-				       const uint64_t, const uint64_t,	 \
-				       uint8_t *, rtype,		 \
-				       ctype *restrict, ctype *restrict, \
-				       ctype *restrict, ctype *restrict, \
-				       ctype *restrict, rtype *restrict, \
-				       linop *, linop *);
+
+/* -------------------------------------------------------------------- 
+ * Function declarations rayleigh_ritz_modified
+ * Modified Rayleigh-Ritz procedure for iterations
+ * ----------------------------------------------------------------- */
+#define DECLARE_RR_MODIFIED(prefix, ctype, rtype, linop)     \
+  void prefix##_rayleigh_ritz_modified(const uint64_t size,  \
+				       const uint64_t nx,    \
+				       const uint64_t nconv, \
+				       const uint64_t ndrop, \
+				       uint8_t *useOrtho,    \
+				       ctype *restrict S,    \
+				       ctype *restrict wrk1, \
+				       ctype *restrict wrk2, \
+				       ctype *restrict wrk3, \
+				       ctype *restrict Cx,   \
+				       rtype *restrict Cp,   \
+				       linop *A,	     \
+				       linop *B);
 TYPE_LIST(DECLARE_RR_MODIFIED)
 #undef
 // need to have something for the amount of locked values here
@@ -146,13 +192,22 @@ TYPE_LIST(DECLARE_RR_MODIFIED)
 	   )(size, sizeSub, mult, useOrtho, S, wrk1, wrk2, wrk3,  \
 	     Cx, Cp, A, B)
 
-/* -------------------------------------------------------------------- */
 
-#define DECLARE_SVQB(prefix, ctype, rtype, linop)		     \
-  uint64_t prefix##_svqb(const uint64_t, const uint64_t,	     \
-			 const rtype, const char, ctype *restrict,   \
-			 ctype *restrict, ctype *restrict,	     \
-			 ctype *restrict, linop *);
+
+/* -------------------------------------------------------------------- 
+ * Function declarations svqb
+ * SVQB orthogonalization (Algorithm from Duersch 2018/Stathapolous)
+ * ------------------------------------------------------------------*/
+#define DECLARE_SVQB(prefix, ctype, rtype, linop) \
+  uint64_t prefix##_svqb(const uint64_t m,	  \
+			 const uint64_t n,	  \
+			 const rtype tau,	  \
+			 const char drop,	  \
+			 ctype *restrict U,	  \
+			 ctype *restrict wrk1,	  \
+			 ctype *restrict wrk2,	  \
+			 ctype *restrict wrk3,	  \
+			 linop *B);
 
 TYPE_LIST(DECLARE_SVQB)
 #undef
@@ -165,14 +220,24 @@ TYPE_LIST(DECLARE_SVQB)
     c64 *: z_svqb						\
 	   )(m, n_u, n_drop, tau, drop, U, wrk1, wrk2, wrk3, B)
 
-/* -------------------------------------------------------------------- */
 
-#define DECLARE_ORTHO_DROP(prefix, ctype, rtype, linop)			\
-  uint64_t prefix##_ortho_drop(const uint64_t, const uin64_t,		\
-			       const uint64_t, const rtype, const rtype	\
-			       ctype *restrict,	ctype *restrict,	\
-			       ctype *restrict, ctype *restrict,	\
-			       ctype *restrict, linop*);
+
+/* -------------------------------------------------------------------- 
+ * Function declarations ortho_drop
+ * Orthogonalize U against V with psd B-inner product
+ * ----------------------------------------------------------------- */
+#define DECLARE_ORTHO_DROP(prefix, ctype, rtype, linop)	\
+  uint64_t prefix##_ortho_drop(const uint64_t m,	\
+			       const uin64_t n_u,	\
+			       const uint64_t n_v,	\
+			       const rtype eps_ortho,	\
+			       const rtype eps_drop	\
+			       ctype *restrict U ,	\
+			       ctype *restrict V,	\
+			       ctype *restrict wrk1,	\
+			       ctype *restrict wrk2,	\
+			       ctype *restrict wrk3,	\
+			       linop *B);
 
 TYPE_LIST(DECLARE_ORTHO_DROP)
 #undef
