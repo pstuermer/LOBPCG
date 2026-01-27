@@ -9,6 +9,8 @@
 #include <stdint.h>
 //#include <cblas.h>
 
+#include "lobpcg/memory.h"
+
 typedef float f32;
 typedef double f64;
 typedef float complex c32;
@@ -22,31 +24,15 @@ typedef struct {
   size_t data_size;
 } linop_ctx_t;
 
-void *xcalloc(size_t size) {
-  void *ptr = calloc(1, size);
-  if (!ptr) {
-    fprintf(stderr, "Memory allocation failed.\n");
-    exit(1);
-  }
-  return ptr;
-}
-
-void safe_free(void *ptr) {
-  if (ptr) {
-    free(*(void**)ptr);
-    *(void**)ptr = NULL;
-  }
-}
-
 // Generic LinearOperator structure
 #define DEFINE_LINEAR_OPERATOR(type, suffix)				\
-  typedef struct LinearOperator_##suffix LinearOperator_##suffix;	\
-  typedef void (*matvec_func_##suffix##_t)(const LinearOperator_##suffix *op, \
+  typedef struct LinearOperator_##suffix##_t LinearOperator_##suffix##_t; \
+  typedef void (*matvec_func_##suffix##_t)(const LinearOperator_##suffix##_t *op, \
 					   type *restrict x,	\
 					   type *restrict y);		\
   typedef void (*cleanup_func_##suffix##_t)(linop_ctx_t *ctx);	\
 									\
-  struct LinearOperator_##suffix {					\
+  struct LinearOperator_##suffix##_t {					\
     uint64_t rows;							\
     uint64_t cols;							\
     matvec_func_##suffix##_t matvec;					\
@@ -54,12 +40,12 @@ void safe_free(void *ptr) {
     linop_ctx_t *ctx;						\
   };									\
 									\
-  LinearOperator_##suffix *linop_create_##suffix(uint64_t rows, uint64_t cols, \
+  static inline LinearOperator_##suffix##_t *linop_create_##suffix(uint64_t rows, uint64_t cols, \
 						 matvec_func_##suffix##_t matvec, \
 						 cleanup_func_##suffix##_t cleanup, \
 						 linop_ctx_t *ctx) { \
 									\
-    LinearOperator_##suffix *op = calloc(1, sizeof(LinearOperator_##suffix)); \
+    LinearOperator_##suffix##_t *op = xcalloc(1, sizeof(LinearOperator_##suffix##_t)); \
     op->rows = rows;							\
     op->cols = cols;							\
     op->matvec = matvec;						\
@@ -68,12 +54,12 @@ void safe_free(void *ptr) {
     return op;								\
   }									\
 									\
-  void linop_destroy_##suffix(LinearOperator_##suffix* op) {		\
+  static inline void linop_destroy_##suffix(LinearOperator_##suffix##_t* op) {	\
     if (op->cleanup && op->ctx) op->cleanup(op->ctx);			\
     free( op );								\
   }									\
 									\
-  void linop_apply_##suffix(const LinearOperator_##suffix *op,		\
+  static inline void linop_apply_##suffix(const LinearOperator_##suffix##_t *op,	\
 			    type *restrict x,				\
 			    type *restrict y) {				\
     op->matvec(op, x, y);						\
@@ -95,17 +81,17 @@ DEFINE_LINEAR_OPERATOR(c64, z)
 								)(rows, cols, matvec, cleanup, ctx)
 
 #define linop_apply(op, x, y) _Generic((op), \
-    LinearOperator_s*: linop_apply_s, \
-    LinearOperator_d*: linop_apply_d, \
-    LinearOperator_c*: linop_apply_c, \
-    LinearOperator_z*: linop_apply_z \
+    LinearOperator_s_t*: linop_apply_s, \
+    LinearOperator_d_t*: linop_apply_d, \
+    LinearOperator_c_t*: linop_apply_c, \
+    LinearOperator_z_t*: linop_apply_z \
 				       )(op, x, y)
 
 #define linop_destroy(op) _Generic((op), \
-    LinearOperator_s*: linop_destroy_s, \
-    LinearOperator_d*: linop_destroy_d, \
-    LinearOperator_c*: linop_destroy_c, \
-    LinearOperator_z*: linop_destroy_z \
+    LinearOperator_s_t*: linop_destroy_s, \
+    LinearOperator_d_t*: linop_destroy_d, \
+    LinearOperator_c_t*: linop_destroy_c, \
+    LinearOperator_z_t*: linop_destroy_z \
 				   )(op)
 
 #endif // LINOP_H

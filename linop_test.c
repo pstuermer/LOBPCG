@@ -15,7 +15,7 @@ void cleanup_identity_d(linop_ctx_t *ctx) {
   ctx = NULL;
 }
 
-void identity_matvec_d(const LinearOperator_d *op,
+void identity_matvec_d(const LinearOperator_d_t *op,
 				  f64 *restrict x,
 				  f64 *restrict y) {
   IdentityOpData_d *data = (IdentityOpData_d *)op->ctx->data;
@@ -28,9 +28,9 @@ void identity_matvec_d(const LinearOperator_d *op,
   }
 }
 
-LinearOperator_d *create_identity_d(uint64_t n) {
-  linop_ctx_t *ctx = calloc(1, sizeof(linop_ctx_t));
-  IdentityOpData_d *data = calloc(1, sizeof(IdentityOpData_d));
+LinearOperator_d_t *create_identity_d(uint64_t n) {
+  linop_ctx_t *ctx = xcalloc(1, sizeof(linop_ctx_t));
+  IdentityOpData_d *data = xcalloc(1, sizeof(IdentityOpData_d));
   data->n = n;
 
   ctx->data = data;
@@ -58,7 +58,7 @@ void test_identity_operator() {
   printf("\n--- Testing Identity Operator (double) ---\n");
 
   uint64_t n = 5;
-  LinearOperator_d *ident = create_identity_d(n);
+  LinearOperator_d_t *ident = create_identity_d(n);
 
   f64 x[] = {1.0, 2.0, 3.0, 4.0, 5.0};
   f64 y[5];
