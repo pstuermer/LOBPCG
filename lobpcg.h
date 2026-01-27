@@ -46,6 +46,7 @@ struct LinearOperator_z;
                                                     \
     linop *A;                                       \
     linop *B;                                       \
+    linop *T;                                       \
   };
 
 TYPE_LIST(LOBPCG_STRUCT)

@@ -563,4 +563,60 @@ static inline int z_trcon(char norm, uint64_t n, const c64 *A, f64 *rcond) {
     c32*: c_heev, \
     c64*: z_heev)(n, A, w)
 
+/* -------------------------------------------------------------------
+ * QR factorization (geqrf + orgqr/ungqr)
+ * ------------------------------------------------------------------ */
+
+/* geqrf - QR factorization via Householder reflectors */
+static inline int s_geqrf(uint64_t m, uint64_t n, f32 *A, f32 *tau) {
+    return LAPACKE_sgeqrf(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, A, (lapack_int)m, tau);
+}
+
+static inline int d_geqrf(uint64_t m, uint64_t n, f64 *A, f64 *tau) {
+    return LAPACKE_dgeqrf(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, A, (lapack_int)m, tau);
+}
+
+static inline int c_geqrf(uint64_t m, uint64_t n, c32 *A, c32 *tau) {
+    return LAPACKE_cgeqrf(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, (lapack_complex_float*)A,
+                          (lapack_int)m, (lapack_complex_float*)tau);
+}
+
+static inline int z_geqrf(uint64_t m, uint64_t n, c64 *A, c64 *tau) {
+    return LAPACKE_zgeqrf(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, (lapack_complex_double*)A,
+                          (lapack_int)m, (lapack_complex_double*)tau);
+}
+
+/* orgqr/ungqr - Generate Q from Householder reflectors */
+static inline int s_orgqr(uint64_t m, uint64_t n, uint64_t k, f32 *A, f32 *tau) {
+    return LAPACKE_sorgqr(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, (lapack_int)k,
+                          A, (lapack_int)m, tau);
+}
+
+static inline int d_orgqr(uint64_t m, uint64_t n, uint64_t k, f64 *A, f64 *tau) {
+    return LAPACKE_dorgqr(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, (lapack_int)k,
+                          A, (lapack_int)m, tau);
+}
+
+static inline int c_ungqr(uint64_t m, uint64_t n, uint64_t k, c32 *A, c32 *tau) {
+    return LAPACKE_cungqr(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, (lapack_int)k,
+                          (lapack_complex_float*)A, (lapack_int)m, (lapack_complex_float*)tau);
+}
+
+static inline int z_ungqr(uint64_t m, uint64_t n, uint64_t k, c64 *A, c64 *tau) {
+    return LAPACKE_zungqr(LAPACK_COL_MAJOR, (lapack_int)m, (lapack_int)n, (lapack_int)k,
+                          (lapack_complex_double*)A, (lapack_int)m, (lapack_complex_double*)tau);
+}
+
+#define geqrf(m, n, A, tau) _Generic((A), \
+    f32*: s_geqrf, \
+    f64*: d_geqrf, \
+    c32*: c_geqrf, \
+    c64*: z_geqrf)(m, n, A, tau)
+
+#define ungqr(m, n, k, A, tau) _Generic((A), \
+    f32*: s_orgqr, \
+    f64*: d_orgqr, \
+    c32*: c_ungqr, \
+    c64*: z_ungqr)(m, n, k, A, tau)
+
 #endif /* BLAS_WRAPPER_H */

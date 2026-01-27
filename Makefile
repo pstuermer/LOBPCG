@@ -25,7 +25,8 @@ SRC = $(wildcard src/*.c src/**/*.c)
 OBJ = $(patsubst %.c,%.o,$(SRC))
 
 # Tests
-TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_svqb.ex build/test_ortho_indefinite.ex
+TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_svqb.ex build/test_ortho_indefinite.ex \
+        build/test_ortho_drop.ex build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex
 
 .PHONY: all lib tests run-tests clean
 
@@ -62,6 +63,37 @@ ORTHO_INDEF_SRC = src/ortho/ortho_indefinite_s.c src/ortho/ortho_indefinite_d.c 
                   src/ortho/ortho_indefinite_c.c src/ortho/ortho_indefinite_z.c
 
 build/test_ortho_indefinite.ex: tests/test_ortho_indefinite.c $(SVQB_SRC) $(ORTHO_INDEF_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# ortho_drop test
+ORTHO_DROP_SRC = src/ortho/ortho_drop_s.c src/ortho/ortho_drop_d.c \
+                 src/ortho/ortho_drop_c.c src/ortho/ortho_drop_z.c
+
+build/test_ortho_drop.ex: tests/test_ortho_drop.c $(SVQB_SRC) $(ORTHO_DROP_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# rayleigh_ritz test
+RAYLEIGH_SRC = src/rayleigh/rayleigh_ritz_s.c src/rayleigh/rayleigh_ritz_d.c \
+               src/rayleigh/rayleigh_ritz_c.c src/rayleigh/rayleigh_ritz_z.c
+
+build/test_rayleigh_ritz.ex: tests/test_rayleigh_ritz.c $(RAYLEIGH_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# residual test
+RESIDUAL_SRC = src/residual/residual_s.c src/residual/residual_d.c \
+               src/residual/residual_c.c src/residual/residual_z.c
+
+build/test_residual.ex: tests/test_residual.c $(RESIDUAL_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# LOBPCG integration test
+LOBPCG_CORE_SRC = src/core/lobpcg_s.c src/core/lobpcg_d.c \
+                  src/core/lobpcg_c.c src/core/lobpcg_z.c
+RAYLEIGH_MOD_SRC = src/rayleigh/rayleigh_ritz_modified_s.c src/rayleigh/rayleigh_ritz_modified_d.c \
+                   src/rayleigh/rayleigh_ritz_modified_c.c src/rayleigh/rayleigh_ritz_modified_z.c
+
+build/test_lobpcg.ex: tests/test_lobpcg.c $(LOBPCG_CORE_SRC) $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC) \
+                      $(RESIDUAL_SRC) $(ORTHO_DROP_SRC) $(SVQB_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 run-tests: tests
