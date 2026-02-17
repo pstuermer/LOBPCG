@@ -97,8 +97,10 @@ build/test_ortho_randomized_mat.ex: tests/test_ortho_randomized_mat.c $(SVQB_MAT
 # rayleigh_ritz test
 RAYLEIGH_SRC = src/rayleigh/rayleigh_ritz_s.c src/rayleigh/rayleigh_ritz_d.c \
                src/rayleigh/rayleigh_ritz_c.c src/rayleigh/rayleigh_ritz_z.c
+RAYLEIGH_MOD_SRC = src/rayleigh/rayleigh_ritz_modified_s.c src/rayleigh/rayleigh_ritz_modified_d.c \
+                   src/rayleigh/rayleigh_ritz_modified_c.c src/rayleigh/rayleigh_ritz_modified_z.c
 
-build/test_rayleigh_ritz.ex: tests/test_rayleigh_ritz.c $(RAYLEIGH_SRC)
+build/test_rayleigh_ritz.ex: tests/test_rayleigh_ritz.c $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # residual test
@@ -111,8 +113,6 @@ build/test_residual.ex: tests/test_residual.c $(RESIDUAL_SRC)
 # LOBPCG integration test
 LOBPCG_CORE_SRC = src/core/lobpcg_s.c src/core/lobpcg_d.c \
                   src/core/lobpcg_c.c src/core/lobpcg_z.c
-RAYLEIGH_MOD_SRC = src/rayleigh/rayleigh_ritz_modified_s.c src/rayleigh/rayleigh_ritz_modified_d.c \
-                   src/rayleigh/rayleigh_ritz_modified_c.c src/rayleigh/rayleigh_ritz_modified_z.c
 
 build/test_lobpcg.ex: tests/test_lobpcg.c $(LOBPCG_CORE_SRC) $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC) \
                       $(RESIDUAL_SRC) $(ORTHO_DROP_SRC) $(SVQB_SRC)

@@ -159,6 +159,7 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 #define DECLARE_RR_MODIFIED(prefix, ctype, rtype, linop)       \
   void prefix##_rayleigh_ritz_modified(const uint64_t size,    \
                                        const uint64_t nx,      \
+                                       const uint64_t mult,    \
                                        const uint64_t nconv,   \
                                        const uint64_t ndrop,   \
                                        uint8_t *useOrtho,      \
@@ -168,20 +169,21 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
                                        ctype *restrict wrk3,   \
                                        ctype *restrict Cx,     \
                                        ctype *restrict Cp,     \
+                                       rtype *restrict eigVal, \
                                        linop *A,               \
                                        linop *B);
 
 TYPE_LIST(DECLARE_RR_MODIFIED)
 #undef DECLARE_RR_MODIFIED
 
-#define rayleigh_ritz_modified(size, nx, nconv, ndrop, useOrtho,       \
-                               S, wrk1, wrk2, wrk3, Cx, Cp, A, B)      \
+#define rayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,       \
+                               S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)   \
   _Generic((S),                             \
     f32 *: s_rayleigh_ritz_modified,        \
     f64 *: d_rayleigh_ritz_modified,        \
     c32 *: c_rayleigh_ritz_modified,        \
     c64 *: z_rayleigh_ritz_modified         \
-  )(size, nx, nconv, ndrop, useOrtho, S, wrk1, wrk2, wrk3, Cx, Cp, A, B)
+  )(size, nx, mult, nconv, ndrop, useOrtho, S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: svqb

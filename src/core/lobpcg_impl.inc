@@ -145,6 +145,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
                           alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
 
     /* Main iteration loop */
+    RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
     uint8_t useOrtho = 0;
     alg->converged = 0;
     alg->iter = 0;
@@ -179,9 +180,9 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
         FN(setup_S)(size, sizeSub, alg->iter, X, P, W, alg->S);
 
         /* Modified Rayleigh-Ritz */
-        FN(rayleigh_ritz_modified)(size, sizeSub, alg->converged, 0, &useOrtho,
+        FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
                                    alg->S, alg->wrk1, alg->wrk2, alg->wrk3,
-                                   alg->Cx, alg->Cp, alg->A, alg->B);
+                                   alg->Cx, alg->Cp, eigvals_r, alg->A, alg->B);
 
         /* If condition check failed: set useOrtho and retry */
         if (2 == useOrtho) {
@@ -199,9 +200,18 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
             /* Reassemble S */
             FN(setup_S)(size, sizeSub, alg->iter, X, P, W, alg->S);
             /* Retry RR with useOrtho=1 */
-            FN(rayleigh_ritz_modified)(size, sizeSub, alg->converged, 0, &useOrtho,
+            FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
                                        alg->S, alg->wrk1, alg->wrk2, alg->wrk3,
-                                       alg->Cx, alg->Cp, alg->A, alg->B);
+                                       alg->Cx, alg->Cp, eigvals_r, alg->A, alg->B);
+        }
+
+        /* Copy real eigenvalues into CTYPE eigVals array */
+        for (uint64_t i = 0; i < sizeSub; i++) {
+#ifdef CTYPE_IS_COMPLEX
+            alg->eigVals[i] = eigvals_r[i] + 0*I;
+#else
+            alg->eigVals[i] = eigvals_r[i];
+#endif
         }
 
         /* Project back: X = S * Cx, P = S * Cp */
@@ -228,6 +238,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
         alg->iter++;
     }
+
+    safe_free((void**)&eigvals_r);
 
     /* Final eigenvectors are in X = alg->S */
 }

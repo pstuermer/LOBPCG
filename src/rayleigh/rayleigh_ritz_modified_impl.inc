@@ -39,24 +39,22 @@
  *   Cx: coefficients for X update (mult*nx x nx)
  *   Cp: coefficients for P update (mult*nx x nx)
  *
- * Note: mult is inferred from whether this is iteration 0 (mult=2) or later (mult=3)
- *       but we'll determine it from context or add as parameter
+ *   mult: number of blocks in S (2 for iter 0 [X,W], 3 for iter > 0 [X,P,W])
+ *   eigVal: output eigenvalues (array of at least nx reals)
  */
 void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
+                                const uint64_t mult,
                                 const uint64_t nconv, const uint64_t ndrop,
                                 uint8_t *useOrtho,
                                 CTYPE *restrict S, CTYPE *restrict wrk1,
                                 CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                                 CTYPE *restrict Cx, CTYPE *restrict Cp,
+                                RTYPE *restrict eigVal,
                                 LINOP *A, LINOP *B) {
     (void)nconv;  /* TODO: implement soft-locking */
     (void)ndrop;
 
     const RTYPE tol_skip = 5.0e-3;  /* Condition number threshold */
-
-    /* Determine mult: we'll assume S contains mult*nx columns
-     * For now, hardcode mult=3 (will be 2 on first iteration in main loop) */
-    const uint64_t mult = 3;  /* TODO: pass as parameter or infer */
     const uint64_t sizeSub = mult * nx;
 
     RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
@@ -251,6 +249,11 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     /*     Q is orthonormal basis of null(Z1) which is nx x nx */
     memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
     FN(gemm_nn)(sizeSub, nx, nx, (CTYPE)1, wrk1, wrk2, (CTYPE)0, Cp);
+
+    /* Copy eigenvalues to output */
+    for (uint64_t i = 0; i < nx; i++) {
+        eigVal[i] = eigvals_r[i];
+    }
 
     safe_free((void**)&eigvals_r);
     safe_free((void**)&D);
