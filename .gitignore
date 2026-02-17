@@ -3,6 +3,15 @@
 CLAUDE.md
 TODO.md
 
+# Claude Code
+.claude/
+
+# Binary executables
+*.ex
+
+# Backup Makefiles
+.Makefile.*
+
 # emacs
 *~
 \#*\#
