@@ -264,37 +264,37 @@ static inline void z_gemm_hn(uint64_t nrows_c, uint64_t ncols_c, uint64_t ninner
 }
 
 /* --------------------------------------------------------------------
- * syrk/herk: Gram matrix C = alpha*A*A^T + beta*C (real)
- *                        C = alpha*A*A^H + beta*C (complex)
+ * syrk/herk: Gram matrix C = alpha*A^T*A + beta*C (real)
+ *                        C = alpha*A^H*A + beta*C (complex)
  *
  * Parameters:
- *   nrows_a: rows of A (= rows and cols of C)
- *   ncols_a: cols of A
+ *   nrows_a: rows of A
+ *   ncols_a: cols of A (= rows and cols of C)
  *
- * Result: C is nrows_a x nrows_a (upper triangle filled)
+ * Result: C is ncols_a x ncols_a (upper triangle filled)
  * ------------------------------------------------------------------ */
 static inline void s_syrk(uint64_t nrows_a, uint64_t ncols_a,
                           f32 alpha, const f32 *A, f32 beta, f32 *C) {
-    cblas_ssyrk(CblasColMajor, CblasUpper, CblasNoTrans,
-                (int)nrows_a, (int)ncols_a, alpha, A, (int)nrows_a, beta, C, (int)nrows_a);
+    cblas_ssyrk(CblasColMajor, CblasUpper, CblasTrans,
+                (int)ncols_a, (int)nrows_a, alpha, A, (int)nrows_a, beta, C, (int)ncols_a);
 }
 
 static inline void d_syrk(uint64_t nrows_a, uint64_t ncols_a,
                           f64 alpha, const f64 *A, f64 beta, f64 *C) {
-    cblas_dsyrk(CblasColMajor, CblasUpper, CblasNoTrans,
-                (int)nrows_a, (int)ncols_a, alpha, A, (int)nrows_a, beta, C, (int)nrows_a);
+    cblas_dsyrk(CblasColMajor, CblasUpper, CblasTrans,
+                (int)ncols_a, (int)nrows_a, alpha, A, (int)nrows_a, beta, C, (int)ncols_a);
 }
 
 static inline void c_herk(uint64_t nrows_a, uint64_t ncols_a,
                           f32 alpha, const c32 *A, f32 beta, c32 *C) {
-    cblas_cherk(CblasColMajor, CblasUpper, CblasNoTrans,
-                (int)nrows_a, (int)ncols_a, alpha, A, (int)nrows_a, beta, C, (int)nrows_a);
+    cblas_cherk(CblasColMajor, CblasUpper, CblasConjTrans,
+                (int)ncols_a, (int)nrows_a, alpha, A, (int)nrows_a, beta, C, (int)ncols_a);
 }
 
 static inline void z_herk(uint64_t nrows_a, uint64_t ncols_a,
                           f64 alpha, const c64 *A, f64 beta, c64 *C) {
-    cblas_zherk(CblasColMajor, CblasUpper, CblasNoTrans,
-                (int)nrows_a, (int)ncols_a, alpha, A, (int)nrows_a, beta, C, (int)nrows_a);
+    cblas_zherk(CblasColMajor, CblasUpper, CblasConjTrans,
+                (int)ncols_a, (int)nrows_a, alpha, A, (int)nrows_a, beta, C, (int)ncols_a);
 }
 
 /* --------------------------------------------------------------------

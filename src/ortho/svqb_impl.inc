@@ -49,9 +49,9 @@ uint64_t FN(svqb)(const uint64_t m, const uint64_t n, const RTYPE tau,
     memset(wrk1, 0, n*n*sizeof(CTYPE));
     if (B == NULL) {
 #ifdef CTYPE_IS_COMPLEX
-        FN(herk)(n, m, (RTYPE)1, U, (RTYPE)0, wrk1);
+        FN(herk)(m, n, (RTYPE)1, U, (RTYPE)0, wrk1);
 #else
-        FN(syrk)(n, m, (RTYPE)1, U, (RTYPE)0, wrk1);
+        FN(syrk)(m, n, (RTYPE)1, U, (RTYPE)0, wrk1);
 #endif
     } else {
         for (uint64_t j = 0; j < n; j++)

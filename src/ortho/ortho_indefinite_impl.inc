@@ -106,9 +106,9 @@ uint64_t FN(ortho_indefinite)(
         if (NULL == B) {
             /* B = I: sig = V^H * V */
 #ifdef CTYPE_IS_COMPLEX
-            FN(herk)(n_v, m, (RTYPE)1, V, (RTYPE)0, sig);
+            FN(herk)(m, n_v, (RTYPE)1, V, (RTYPE)0, sig);
 #else
-            FN(syrk)(n_v, m, (RTYPE)1, V, (RTYPE)0, sig);
+            FN(syrk)(m, n_v, (RTYPE)1, V, (RTYPE)0, sig);
 #endif
         } else {
             /* Compute B*V in wrk1 */
@@ -182,9 +182,9 @@ uint64_t FN(ortho_indefinite)(
             /* Check orthonormality: ||U^H*B*U - I||_F */
             if (NULL == B) {
 #ifdef CTYPE_IS_COMPLEX
-                FN(herk)(n_u, m, (RTYPE)1, U, (RTYPE)0, wrk1);
+                FN(herk)(m, n_u, (RTYPE)1, U, (RTYPE)0, wrk1);
 #else
-                FN(syrk)(n_u, m, (RTYPE)1, U, (RTYPE)0, wrk1);
+                FN(syrk)(m, n_u, (RTYPE)1, U, (RTYPE)0, wrk1);
 #endif
             } else {
                 for (uint64_t j = 0; j < n_u; j++)

@@ -52,7 +52,7 @@ static void fill_random_z(uint64_t n, c64 *x) {
 /* Compute ||U^H*U - I||_F for double */
 static f64 ortho_error_d(uint64_t m, uint64_t n, const f64 *U) {
     f64 *G = xcalloc(n * n, sizeof(f64));
-    d_syrk(n, m, 1.0, U, 0.0, G);
+    d_syrk(m, n, 1.0, U, 0.0, G);
     /* Fill lower and subtract I */
     for (uint64_t j = 0; j < n; j++) {
         for (uint64_t i = j; i < n; i++) {
@@ -69,14 +69,14 @@ static f64 ortho_error_d(uint64_t m, uint64_t n, const f64 *U) {
     }
 
     f64 err = d_nrm2(n*n, G);
-    safe_free(G);
+    safe_free((void**)&G);
     return err;
 }
 
 /* Compute ||U^H*U - I||_F for double complex */
 static f64 ortho_error_z(uint64_t m, uint64_t n, const c64 *U) {
     c64 *G = xcalloc(n * n, sizeof(c64));
-    z_herk(n, m, 1.0, U, 0.0, G);
+    z_herk(m, n, 1.0, U, 0.0, G);
     /* Fill lower and subtract I */
     for (uint64_t j = 0; j < n; j++) {
         for (uint64_t i = j; i < n; i++) {
@@ -91,7 +91,7 @@ static f64 ortho_error_z(uint64_t m, uint64_t n, const c64 *U) {
       }
       printf("\n");
     }
-    safe_free(G);
+    safe_free((void**)&G);
     return err;
 }
 
@@ -116,7 +116,7 @@ TEST(d_svqb_identity) {
     printf("err = %.2e, tol = %.2e ", err, TOL_F64 * n);
     ASSERT(err < TOL_F64 * n);
 
-    safe_free(U); safe_free(wrk1); safe_free(wrk2); safe_free(wrk3);
+    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 TEST(d_svqb_larger) {
@@ -196,7 +196,7 @@ TEST(s_svqb_identity) {
 
     /* Compute error */
     f32 *G = calloc(n * n, sizeof(f32));
-    s_syrk(n, m, 1.0f, U, 0.0f, G);
+    s_syrk(m, n, 1.0f, U, 0.0f, G);
     for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0f;
     f32 err = s_nrm2(n*n, G);
     ASSERT(err < TOL_F32 * n);

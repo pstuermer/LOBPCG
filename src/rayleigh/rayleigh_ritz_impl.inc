@@ -52,9 +52,9 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
     if (NULL == B) {
         /* G = S^H * S via herk/syrk */
 #ifdef CTYPE_IS_COMPLEX
-        FN(herk)(sizeSub, size, (RTYPE)1, S, (RTYPE)0, wrk1);
+        FN(herk)(size, sizeSub, (RTYPE)1, S, (RTYPE)0, wrk1);
 #else
-        FN(syrk)(sizeSub, size, (RTYPE)1, S, (RTYPE)0, wrk1);
+        FN(syrk)(size, sizeSub, (RTYPE)1, S, (RTYPE)0, wrk1);
 #endif
     } else {
         /* BS = B*S in wrk2 */

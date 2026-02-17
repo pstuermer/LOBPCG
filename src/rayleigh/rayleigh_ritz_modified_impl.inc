@@ -67,9 +67,9 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
     if (NULL == B) {
 #ifdef CTYPE_IS_COMPLEX
-        FN(herk)(sizeSub, size, (RTYPE)1, S, (RTYPE)0, wrk1);
+        FN(herk)(size, sizeSub, (RTYPE)1, S, (RTYPE)0, wrk1);
 #else
-        FN(syrk)(sizeSub, size, (RTYPE)1, S, (RTYPE)0, wrk1);
+        FN(syrk)(size, sizeSub, (RTYPE)1, S, (RTYPE)0, wrk1);
 #endif
     } else {
         /* BS = B*S in wrk2 */

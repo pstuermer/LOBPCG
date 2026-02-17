@@ -144,22 +144,22 @@ TEST(z_gemm_nn) {
 }
 
 TEST(d_syrk) {
-    /* C = A * A^T where A = [1 2; 3 4] (2x2) */
-    /* A*A^T = [1 2; 3 4] * [1 3; 2 4] = [5 11; 11 25] */
+    /* C = A^T * A where A = [1 2; 3 4] (2x2, col-major) */
+    /* A^T*A = [1 3; 2 4] * [1 2; 3 4] = [10 14; 14 20] */
     f64 A[] = {1.0, 3.0, 2.0, 4.0};  /* column-major */
     f64 C[] = {0.0, 0.0, 0.0, 0.0};
     d_syrk(2, 2, 1.0, A, 0.0, C);
-    ASSERT_NEAR(C[0], 5.0, TOL_F64);   /* C[0,0] */
-    ASSERT_NEAR(C[2], 11.0, TOL_F64);  /* C[0,1] upper */
-    ASSERT_NEAR(C[3], 25.0, TOL_F64);  /* C[1,1] */
+    ASSERT_NEAR(C[0], 10.0, TOL_F64);  /* C[0,0] */
+    ASSERT_NEAR(C[2], 14.0, TOL_F64);  /* C[0,1] upper */
+    ASSERT_NEAR(C[3], 20.0, TOL_F64);  /* C[1,1] */
 }
 
 TEST(z_herk) {
-    /* C = A * A^H where A = [1+i; 2+i] (2x1) */
-    /* A*A^H = [1+i; 2+i] * [1-i, 2-i] = [2, 3+i; 3-i, 5] */
+    /* C = A^H * A where A = [1+i, 2+i] (1x2, col-major) */
+    /* A^H*A = [1-i; 2-i] * [1+i, 2+i] = [2, 3-i; 3+i, 5] */
     c64 A[] = {1.0+1.0*I, 2.0+1.0*I};
     c64 C[] = {0.0, 0.0, 0.0, 0.0};
-    z_herk(2, 1, 1.0, A, 0.0, C);
+    z_herk(1, 2, 1.0, A, 0.0, C);
     ASSERT_NEAR(creal(C[0]), 2.0, TOL_F64);
     ASSERT_NEAR(creal(C[3]), 5.0, TOL_F64);
 }
