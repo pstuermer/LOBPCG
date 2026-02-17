@@ -26,7 +26,8 @@ OBJ = $(patsubst %.c,%.o,$(SRC))
 
 # Tests
 TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_svqb.ex build/test_ortho_indefinite.ex \
-        build/test_ortho_drop.ex build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex
+        build/test_ortho_drop.ex build/test_ortho_randomize.ex build/test_svqb_mat.ex build/test_ortho_randomized_mat.ex \
+        build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex
 
 .PHONY: all lib tests run-tests clean
 
@@ -70,6 +71,27 @@ ORTHO_DROP_SRC = src/ortho/ortho_drop_s.c src/ortho/ortho_drop_d.c \
                  src/ortho/ortho_drop_c.c src/ortho/ortho_drop_z.c
 
 build/test_ortho_drop.ex: tests/test_ortho_drop.c $(SVQB_SRC) $(ORTHO_DROP_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# ortho_randomize test
+ORTHO_RAND_SRC = src/ortho/ortho_randomize_s.c src/ortho/ortho_randomize_d.c \
+                 src/ortho/ortho_randomize_c.c src/ortho/ortho_randomize_z.c
+
+build/test_ortho_randomize.ex: tests/test_ortho_randomize.c $(SVQB_SRC) $(ORTHO_RAND_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# svqb_mat test
+SVQB_MAT_SRC = src/ortho/svqb_mat_s.c src/ortho/svqb_mat_d.c \
+               src/ortho/svqb_mat_c.c src/ortho/svqb_mat_z.c
+
+build/test_svqb_mat.ex: tests/test_svqb_mat.c $(SVQB_MAT_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# ortho_randomized_mat test
+ORTHO_RMAT_SRC = src/ortho/ortho_randomized_mat_s.c src/ortho/ortho_randomized_mat_d.c \
+                 src/ortho/ortho_randomized_mat_c.c src/ortho/ortho_randomized_mat_z.c
+
+build/test_ortho_randomized_mat.ex: tests/test_ortho_randomized_mat.c $(SVQB_MAT_SRC) $(ORTHO_RMAT_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # rayleigh_ritz test

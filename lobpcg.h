@@ -211,6 +211,33 @@ TYPE_LIST(DECLARE_SVQB)
   )(m, n, tau, drop, U, wrk1, wrk2, wrk3, B)
 
 /* --------------------------------------------------------------------
+ * Function declarations: svqb_mat
+ * SVQB orthogonalization with explicit dense matrix (for ilobpcg)
+ * Returns number of columns after dropping
+ * ------------------------------------------------------------------ */
+#define DECLARE_SVQB_MAT(prefix, ctype, rtype, linop) \
+  uint64_t prefix##_svqb_mat(const uint64_t m,        \
+                             const uint64_t n,         \
+                             const rtype tau,          \
+                             const char drop,          \
+                             ctype *restrict U,        \
+                             ctype *restrict mat,      \
+                             ctype *restrict wrk1,     \
+                             ctype *restrict wrk2,     \
+                             ctype *restrict wrk3);
+
+TYPE_LIST(DECLARE_SVQB_MAT)
+#undef DECLARE_SVQB_MAT
+
+#define svqb_mat(m, n, tau, drop, U, mat, wrk1, wrk2, wrk3) \
+  _Generic((U),                 \
+    f32 *: s_svqb_mat,          \
+    f64 *: d_svqb_mat,          \
+    c32 *: c_svqb_mat,          \
+    c64 *: z_svqb_mat           \
+  )(m, n, tau, drop, U, mat, wrk1, wrk2, wrk3)
+
+/* --------------------------------------------------------------------
  * Function declarations: ortho_drop
  * Orthogonalize U against V with psd B-inner product
  * Returns number of columns dropped from U
@@ -238,6 +265,36 @@ TYPE_LIST(DECLARE_ORTHO_DROP)
     c32 *: c_ortho_drop,            \
     c64 *: z_ortho_drop             \
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, wrk1, wrk2, wrk3, B)
+
+/* --------------------------------------------------------------------
+ * Function declarations: ortho_randomize
+ * Orthogonalize U against V with psd B-inner product
+ * Same algorithm as ortho_drop but with eps_randomize (looser tolerance)
+ * Returns number of columns retained in U
+ * ------------------------------------------------------------------ */
+#define DECLARE_ORTHO_RANDOMIZE(prefix, ctype, rtype, linop) \
+  uint64_t prefix##_ortho_randomize(const uint64_t m,        \
+                                     const uint64_t n_u,      \
+                                     const uint64_t n_v,      \
+                                     const rtype eps_ortho,   \
+                                     const rtype eps_randomize, \
+                                     ctype *restrict U,       \
+                                     ctype *restrict V,       \
+                                     ctype *restrict wrk1,    \
+                                     ctype *restrict wrk2,    \
+                                     ctype *restrict wrk3,    \
+                                     linop *B);
+
+TYPE_LIST(DECLARE_ORTHO_RANDOMIZE)
+#undef DECLARE_ORTHO_RANDOMIZE
+
+#define ortho_randomize(m, n_u, n_v, eps_ortho, eps_randomize, U, V, wrk1, wrk2, wrk3, B) \
+  _Generic((U),                         \
+    f32 *: s_ortho_randomize,           \
+    f64 *: d_ortho_randomize,           \
+    c32 *: c_ortho_randomize,           \
+    c64 *: z_ortho_randomize            \
+  )(m, n_u, n_v, eps_ortho, eps_randomize, U, V, wrk1, wrk2, wrk3, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: ortho_indefinite
@@ -268,5 +325,35 @@ TYPE_LIST(DECLARE_ORTHO_INDEFINITE)
     c32 *: c_ortho_indefinite,          \
     c64 *: z_ortho_indefinite           \
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, sig, wrk1, wrk2, wrk3, B)
+
+/* --------------------------------------------------------------------
+ * Function declarations: ortho_randomized_mat
+ * Matrix-based B-orthogonalization of U against V (for ilobpcg)
+ * Uses double projection (I - V*V^H*mat)^2 for indefinite metric
+ * Returns number of columns retained in U
+ * ------------------------------------------------------------------ */
+#define DECLARE_ORTHO_RMAT(prefix, ctype, rtype, linop)       \
+  uint64_t prefix##_ortho_randomized_mat(const uint64_t m,    \
+                                         const uint64_t n_u,  \
+                                         const uint64_t n_v,  \
+                                         const rtype eps_ortho, \
+                                         const rtype eps_drop,  \
+                                         ctype *restrict U,    \
+                                         ctype *restrict V,    \
+                                         ctype *restrict mat,  \
+                                         ctype *restrict wrk1, \
+                                         ctype *restrict wrk2, \
+                                         ctype *restrict wrk3);
+
+TYPE_LIST(DECLARE_ORTHO_RMAT)
+#undef DECLARE_ORTHO_RMAT
+
+#define ortho_randomized_mat(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3) \
+  _Generic((U),                             \
+    f32 *: s_ortho_randomized_mat,          \
+    f64 *: d_ortho_randomized_mat,          \
+    c32 *: c_ortho_randomized_mat,          \
+    c64 *: z_ortho_randomized_mat           \
+  )(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3)
 
 #endif /* LOBPCG_H */

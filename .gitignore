@@ -1,5 +1,12 @@
 # Prerequisites
 *.d
+CLAUDE.md
+TODO.md
+
+# emacs
+*~
+\#*\#
+.\#*
 
 # Object files
 *.o
