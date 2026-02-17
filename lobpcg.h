@@ -358,4 +358,79 @@ TYPE_LIST(DECLARE_ORTHO_RMAT)
     c64 *: z_ortho_randomized_mat           \
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3)
 
+/* --------------------------------------------------------------------
+ * Function declarations: indefinite_rayleigh_ritz
+ * Indefinite Rayleigh-Ritz using GGEV (for ilobpcg)
+ * ------------------------------------------------------------------ */
+#define DECLARE_INDEF_RR(prefix, ctype, rtype, linop)                \
+  void prefix##_indefinite_rayleigh_ritz(                            \
+      const uint64_t size, const uint64_t sizeSub,                   \
+      ctype *restrict S, ctype *restrict Cx, ctype *restrict eigVal, \
+      int8_t *restrict signature,                                    \
+      ctype *restrict wrk1, ctype *restrict wrk2,                   \
+      ctype *restrict wrk3, ctype *restrict wrk4,                   \
+      linop *A, linop *B);
+
+TYPE_LIST(DECLARE_INDEF_RR)
+#undef DECLARE_INDEF_RR
+
+#define indefinite_rayleigh_ritz(size, sizeSub, S, Cx, eigVal, sig,   \
+                                  wrk1, wrk2, wrk3, wrk4, A, B)       \
+  _Generic((S),                                 \
+    f32 *: s_indefinite_rayleigh_ritz,          \
+    f64 *: d_indefinite_rayleigh_ritz,          \
+    c32 *: c_indefinite_rayleigh_ritz,          \
+    c64 *: z_indefinite_rayleigh_ritz           \
+  )(size, sizeSub, S, Cx, eigVal, sig, wrk1, wrk2, wrk3, wrk4, A, B)
+
+/* --------------------------------------------------------------------
+ * Function declarations: indefinite_rayleigh_ritz_modified
+ * Modified indefinite Rayleigh-Ritz with Cx/Cp extraction (for ilobpcg)
+ * ------------------------------------------------------------------ */
+#define DECLARE_INDEF_RR_MOD(prefix, ctype, rtype, linop)                \
+  void prefix##_indefinite_rayleigh_ritz_modified(                       \
+      const uint64_t size, const uint64_t nx,                            \
+      const uint64_t mult,                                               \
+      const uint64_t nconv, const uint64_t ndrop,                        \
+      ctype *restrict S, ctype *restrict wrk1,                           \
+      ctype *restrict wrk2, ctype *restrict wrk3, ctype *restrict wrk4, \
+      ctype *restrict Cx, ctype *restrict Cp,                            \
+      rtype *restrict eigVal, int8_t *restrict signature,                \
+      linop *A, linop *B);
+
+TYPE_LIST(DECLARE_INDEF_RR_MOD)
+#undef DECLARE_INDEF_RR_MOD
+
+#define indefinite_rayleigh_ritz_modified(size, nx, mult, nconv, ndrop,     \
+                                          S, wrk1, wrk2, wrk3, wrk4,       \
+                                          Cx, Cp, eigVal, sig, A, B)        \
+  _Generic((S),                                         \
+    f32 *: s_indefinite_rayleigh_ritz_modified,         \
+    f64 *: d_indefinite_rayleigh_ritz_modified,         \
+    c32 *: c_indefinite_rayleigh_ritz_modified,         \
+    c64 *: z_indefinite_rayleigh_ritz_modified          \
+  )(size, nx, mult, nconv, ndrop, S, wrk1, wrk2, wrk3, wrk4, Cx, Cp, eigVal, sig, A, B)
+
+/* --------------------------------------------------------------------
+ * K-based Rayleigh-Ritz: aliases to standard RR
+ * (algorithmically identical — both use Cholesky + HEEV)
+ * ------------------------------------------------------------------ */
+#define s_krayleigh_ritz           s_rayleigh_ritz
+#define d_krayleigh_ritz           d_rayleigh_ritz
+#define c_krayleigh_ritz           c_rayleigh_ritz
+#define z_krayleigh_ritz           z_rayleigh_ritz
+
+#define s_krayleigh_ritz_modified  s_rayleigh_ritz_modified
+#define d_krayleigh_ritz_modified  d_rayleigh_ritz_modified
+#define c_krayleigh_ritz_modified  c_rayleigh_ritz_modified
+#define z_krayleigh_ritz_modified  z_rayleigh_ritz_modified
+
+#define krayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, A, B) \
+  rayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, A, B)
+
+#define krayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,       \
+                                S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)   \
+  rayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,              \
+                         S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)
+
 #endif /* LOBPCG_H */

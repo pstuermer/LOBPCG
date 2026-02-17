@@ -27,7 +27,7 @@ OBJ = $(patsubst %.c,%.o,$(SRC))
 # Tests
 TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_svqb.ex build/test_ortho_indefinite.ex \
         build/test_ortho_drop.ex build/test_ortho_randomize.ex build/test_svqb_mat.ex build/test_ortho_randomized_mat.ex \
-        build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex
+        build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex build/test_indefinite_rr.ex
 
 .PHONY: all lib tests run-tests clean
 
@@ -100,7 +100,16 @@ RAYLEIGH_SRC = src/rayleigh/rayleigh_ritz_s.c src/rayleigh/rayleigh_ritz_d.c \
 RAYLEIGH_MOD_SRC = src/rayleigh/rayleigh_ritz_modified_s.c src/rayleigh/rayleigh_ritz_modified_d.c \
                    src/rayleigh/rayleigh_ritz_modified_c.c src/rayleigh/rayleigh_ritz_modified_z.c
 
+INDEF_RR_SRC = src/rayleigh/indefinite_rr_s.c src/rayleigh/indefinite_rr_d.c \
+               src/rayleigh/indefinite_rr_c.c src/rayleigh/indefinite_rr_z.c
+INDEF_RR_MOD_SRC = src/rayleigh/indefinite_rr_modified_s.c src/rayleigh/indefinite_rr_modified_d.c \
+                   src/rayleigh/indefinite_rr_modified_c.c src/rayleigh/indefinite_rr_modified_z.c
+
 build/test_rayleigh_ritz.ex: tests/test_rayleigh_ritz.c $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# indefinite rayleigh_ritz test
+build/test_indefinite_rr.ex: tests/test_indefinite_rr.c $(INDEF_RR_SRC) $(INDEF_RR_MOD_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # residual test
