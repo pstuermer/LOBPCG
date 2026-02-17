@@ -25,8 +25,8 @@ int test_ortho_drop_d(void) {
     f64 *U = calloc(m * n_u, sizeof(f64));
     f64 *V = calloc(m * n_v, sizeof(f64));
     f64 *wrk1 = calloc(m * (n_u + n_v), sizeof(f64));
-    f64 *wrk2 = calloc((n_u + n_v) * (n_u + n_v), sizeof(f64));
-    f64 *wrk3 = calloc((n_u + n_v) * (n_u + n_v), sizeof(f64));
+    f64 *wrk2 = calloc(m * (n_u > n_v ? n_u : n_v), sizeof(f64));
+    f64 *wrk3 = calloc(m * (n_u > n_v ? n_u : n_v), sizeof(f64));
 
     /* Fill U and V with random values */
     for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand() / RAND_MAX;
@@ -71,8 +71,8 @@ int test_ortho_drop_z(void) {
     c64 *U = calloc(m * n_u, sizeof(c64));
     c64 *V = calloc(m * n_v, sizeof(c64));
     c64 *wrk1 = calloc(m * (n_u + n_v), sizeof(c64));
-    c64 *wrk2 = calloc((n_u + n_v) * (n_u + n_v), sizeof(c64));
-    c64 *wrk3 = calloc((n_u + n_v) * (n_u + n_v), sizeof(c64));
+    c64 *wrk2 = calloc(m * (n_u > n_v ? n_u : n_v), sizeof(c64));
+    c64 *wrk3 = calloc(m * (n_u > n_v ? n_u : n_v), sizeof(c64));
 
     /* Fill U and V with random complex values */
     for (uint64_t i = 0; i < m * n_u; i++) {
