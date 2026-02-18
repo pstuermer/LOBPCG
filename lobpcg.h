@@ -29,6 +29,7 @@ struct LinearOperator_z;
                                                     \
     ctype *restrict eigVals;                        \
     rtype *restrict resNorm;                        \
+    int8_t *restrict signature;                     \
                                                     \
     ctype *restrict wrk1;                           \
     ctype *restrict wrk2;                           \
@@ -67,6 +68,23 @@ TYPE_LIST(DECLARE_LOBPCG)
     d_lobpcg_t *: d_lobpcg,     \
     c_lobpcg_t *: c_lobpcg,     \
     z_lobpcg_t *: z_lobpcg      \
+  )(alg)
+
+/* --------------------------------------------------------------------
+ * Function declarations: ilobpcg main solver (indefinite LOBPCG)
+ * ------------------------------------------------------------------ */
+#define DECLARE_ILOBPCG(prefix, ctype, rtype, linop) \
+  void prefix##_ilobpcg(prefix##_lobpcg_t *);
+
+TYPE_LIST(DECLARE_ILOBPCG)
+#undef DECLARE_ILOBPCG
+
+#define ilobpcg(alg)            \
+  _Generic((alg),               \
+    s_lobpcg_t *: s_ilobpcg,    \
+    d_lobpcg_t *: d_ilobpcg,    \
+    c_lobpcg_t *: c_ilobpcg,    \
+    z_lobpcg_t *: z_ilobpcg     \
   )(alg)
 
 /* --------------------------------------------------------------------
