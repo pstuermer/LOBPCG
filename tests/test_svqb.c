@@ -13,6 +13,7 @@
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
 #include "linop.h"
+#include "lobpcg/memory.h"
 
 #define TOL_F32 1e-5
 #define TOL_F64 1e-12
@@ -122,10 +123,10 @@ TEST(d_svqb_identity) {
 TEST(d_svqb_larger) {
     /* Larger test: 1000 x 20 */
     const uint64_t m = 1000, n = 20;
-    f64 *U = calloc(m * n, sizeof(f64));
-    f64 *wrk1 = calloc(n * n, sizeof(f64));
-    f64 *wrk2 = calloc(m * n, sizeof(f64));
-    f64 *wrk3 = calloc(m * n, sizeof(f64));
+    f64 *U = xcalloc(m * n, sizeof(f64));
+    f64 *wrk1 = xcalloc(n * n, sizeof(f64));
+    f64 *wrk2 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk3 = xcalloc(m * n, sizeof(f64));
 
     fill_random_d(m * n, U);
 
@@ -134,7 +135,7 @@ TEST(d_svqb_larger) {
     f64 err = ortho_error_d(m, n, U);
     ASSERT(err < TOL_F64 * n);
 
-    free(U); free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 /* ====================================================================
@@ -144,10 +145,10 @@ TEST(d_svqb_larger) {
 TEST(z_svqb_identity) {
     /* Random U → svqb → verify ||U^H*U - I||_F < tol */
     const uint64_t m = 100, n = 10;
-    c64 *U = calloc(m * n, sizeof(c64));
-    c64 *wrk1 = calloc(n * n, sizeof(c64));
-    c64 *wrk2 = calloc(m * n, sizeof(c64));
-    c64 *wrk3 = calloc(m * n, sizeof(c64));
+    c64 *U = xcalloc(m * n, sizeof(c64));
+    c64 *wrk1 = xcalloc(n * n, sizeof(c64));
+    c64 *wrk2 = xcalloc(m * n, sizeof(c64));
+    c64 *wrk3 = xcalloc(m * n, sizeof(c64));
 
     fill_random_z(m * n, U);
 
@@ -157,16 +158,16 @@ TEST(z_svqb_identity) {
     f64 err = ortho_error_z(m, n, U);
     ASSERT(err < TOL_F64 * n);
 
-    free(U); free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 TEST(z_svqb_larger) {
     /* Larger test: 1000 x 20 */
     const uint64_t m = 1000, n = 20;
-    c64 *U = calloc(m * n, sizeof(c64));
-    c64 *wrk1 = calloc(n * n, sizeof(c64));
-    c64 *wrk2 = calloc(m * n, sizeof(c64));
-    c64 *wrk3 = calloc(m * n, sizeof(c64));
+    c64 *U = xcalloc(m * n, sizeof(c64));
+    c64 *wrk1 = xcalloc(n * n, sizeof(c64));
+    c64 *wrk2 = xcalloc(m * n, sizeof(c64));
+    c64 *wrk3 = xcalloc(m * n, sizeof(c64));
 
     fill_random_z(m * n, U);
 
@@ -175,7 +176,7 @@ TEST(z_svqb_larger) {
     f64 err = ortho_error_z(m, n, U);
     ASSERT(err < TOL_F64 * n);
 
-    free(U); free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 /* ====================================================================
@@ -184,10 +185,10 @@ TEST(z_svqb_larger) {
 
 TEST(s_svqb_identity) {
     const uint64_t m = 100, n = 10;
-    f32 *U = calloc(m * n, sizeof(f32));
-    f32 *wrk1 = calloc(n * n, sizeof(f32));
-    f32 *wrk2 = calloc(m * n, sizeof(f32));
-    f32 *wrk3 = calloc(m * n, sizeof(f32));
+    f32 *U = xcalloc(m * n, sizeof(f32));
+    f32 *wrk1 = xcalloc(n * n, sizeof(f32));
+    f32 *wrk2 = xcalloc(m * n, sizeof(f32));
+    f32 *wrk3 = xcalloc(m * n, sizeof(f32));
 
     for (uint64_t i = 0; i < m*n; i++)
         U[i] = (f32)rand() / RAND_MAX - 0.5f;
@@ -195,13 +196,13 @@ TEST(s_svqb_identity) {
     s_svqb(m, n, 1e-6f, 'n', U, wrk1, wrk2, wrk3, NULL);
 
     /* Compute error */
-    f32 *G = calloc(n * n, sizeof(f32));
+    f32 *G = xcalloc(n * n, sizeof(f32));
     s_syrk(m, n, 1.0f, U, 0.0f, G);
     for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0f;
     f32 err = s_nrm2(n*n, G);
     ASSERT(err < TOL_F32 * n);
 
-    free(U); free(wrk1); free(wrk2); free(wrk3); free(G);
+    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3); safe_free((void**)&G);
 }
 
 /* ====================================================================

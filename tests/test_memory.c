@@ -14,7 +14,7 @@ int main(void) {
     assert(addr % 64 == 0);
     printf("  xmalloc(%zu) -> %p (aligned: %s)\n",
            size, ptr, (addr % 64 == 0) ? "YES" : "NO");
-    free(ptr);
+    safe_free((void**)&ptr);
   }
   printf("  All allocations properly aligned\t\t\t[PASS]\n\n");
 
@@ -38,7 +38,7 @@ int main(void) {
   }
   printf("  Zero-initialization: %s\n", all_zero ? "YES" : "NO");
   assert(all_zero);
-  free(arr);
+  safe_free((void**)&arr);
   printf("  Allocation aligned and zero-initialized\t\t\t[PASS]\n\n");
 
   // Test 3: safe_free nullification

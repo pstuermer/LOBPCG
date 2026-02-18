@@ -11,6 +11,7 @@
 #include "lobpcg.h"
 #include "linop.h"
 #include "lobpcg/blas_wrapper.h"
+#include "lobpcg/memory.h"
 
 #define TEST_TOLERANCE 1e-12
 
@@ -22,15 +23,15 @@ int test_ortho_randomize_d(void) {
     const f64 eps_ortho = 1e-14;
     const f64 eps_randomize = 1e-14;
 
-    f64 *U = calloc(m * n_u, sizeof(f64));
-    f64 *V = calloc(m * n_v, sizeof(f64));
+    f64 *U = xcalloc(m * n_u, sizeof(f64));
+    f64 *V = xcalloc(m * n_v, sizeof(f64));
     /* wrk1: max(m*n_u, m*n_v) for B*U or B*V; also n*n for Gram in svqb */
     /* wrk2: max(m*n_u, n_v*n_u) for ortho coefs + svqb gemm output */
     /* wrk3: n_u*n_u for svqb transform */
     const uint64_t wrk_mn = m * (n_u > n_v ? n_u : n_v);
-    f64 *wrk1 = calloc(wrk_mn, sizeof(f64));
-    f64 *wrk2 = calloc(wrk_mn, sizeof(f64));
-    f64 *wrk3 = calloc(wrk_mn, sizeof(f64));
+    f64 *wrk1 = xcalloc(wrk_mn, sizeof(f64));
+    f64 *wrk2 = xcalloc(wrk_mn, sizeof(f64));
+    f64 *wrk3 = xcalloc(wrk_mn, sizeof(f64));
 
     /* Fill U and V with random values */
     for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand() / RAND_MAX;
@@ -46,13 +47,13 @@ int test_ortho_randomize_d(void) {
     printf("  Returned %lu columns (expected %lu)\n", (unsigned long)n_ret, (unsigned long)n_u);
 
     /* Check ||V^H * U||_F < tol */
-    f64 *VtU = calloc(n_v * n_u, sizeof(f64));
+    f64 *VtU = xcalloc(n_v * n_u, sizeof(f64));
     d_gemm_tn(n_v, n_u, m, 1.0, V, U, 0.0, VtU);
     f64 VtU_norm = d_nrm2(n_v * n_u, VtU);
     printf("  ||V^H * U||_F = %.3e (should be < %.3e)\n", VtU_norm, TEST_TOLERANCE);
 
     /* Check ||U^H * U - I||_F < tol */
-    f64 *UtU = calloc(n_u * n_u, sizeof(f64));
+    f64 *UtU = xcalloc(n_u * n_u, sizeof(f64));
     d_gemm_tn(n_u, n_u, m, 1.0, U, U, 0.0, UtU);
     for (uint64_t i = 0; i < n_u; i++) UtU[i + i*n_u] -= 1.0;
     f64 UtU_norm = d_nrm2(n_u * n_u, UtU);
@@ -60,7 +61,7 @@ int test_ortho_randomize_d(void) {
 
     int pass = (VtU_norm < TEST_TOLERANCE) && (UtU_norm < TEST_TOLERANCE);
 
-    free(U); free(V); free(wrk1); free(wrk2); free(wrk3); free(VtU); free(UtU);
+    safe_free((void**)&U); safe_free((void**)&V); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3); safe_free((void**)&VtU); safe_free((void**)&UtU);
     return pass;
 }
 
@@ -72,12 +73,12 @@ int test_ortho_randomize_z(void) {
     const f64 eps_ortho = 1e-14;
     const f64 eps_randomize = 1e-14;
 
-    c64 *U = calloc(m * n_u, sizeof(c64));
-    c64 *V = calloc(m * n_v, sizeof(c64));
+    c64 *U = xcalloc(m * n_u, sizeof(c64));
+    c64 *V = xcalloc(m * n_v, sizeof(c64));
     const uint64_t wrk_mn = m * (n_u > n_v ? n_u : n_v);
-    c64 *wrk1 = calloc(wrk_mn, sizeof(c64));
-    c64 *wrk2 = calloc(wrk_mn, sizeof(c64));
-    c64 *wrk3 = calloc(wrk_mn, sizeof(c64));
+    c64 *wrk1 = xcalloc(wrk_mn, sizeof(c64));
+    c64 *wrk2 = xcalloc(wrk_mn, sizeof(c64));
+    c64 *wrk3 = xcalloc(wrk_mn, sizeof(c64));
 
     /* Fill U and V with random complex values */
     for (uint64_t i = 0; i < m * n_u; i++) {
@@ -97,13 +98,13 @@ int test_ortho_randomize_z(void) {
     printf("  Returned %lu columns (expected %lu)\n", (unsigned long)n_ret, (unsigned long)n_u);
 
     /* Check ||V^H * U||_F < tol */
-    c64 *VhU = calloc(n_v * n_u, sizeof(c64));
+    c64 *VhU = xcalloc(n_v * n_u, sizeof(c64));
     z_gemm_hn(n_v, n_u, m, 1.0, V, U, 0.0, VhU);
     f64 VhU_norm = z_nrm2(n_v * n_u, VhU);
     printf("  ||V^H * U||_F = %.3e (should be < %.3e)\n", VhU_norm, TEST_TOLERANCE);
 
     /* Check ||U^H * U - I||_F < tol */
-    c64 *UhU = calloc(n_u * n_u, sizeof(c64));
+    c64 *UhU = xcalloc(n_u * n_u, sizeof(c64));
     z_gemm_hn(n_u, n_u, m, 1.0, U, U, 0.0, UhU);
     for (uint64_t i = 0; i < n_u; i++) UhU[i + i*n_u] -= 1.0;
     f64 UhU_norm = z_nrm2(n_u * n_u, UhU);
@@ -111,7 +112,7 @@ int test_ortho_randomize_z(void) {
 
     int pass = (VhU_norm < TEST_TOLERANCE) && (UhU_norm < TEST_TOLERANCE);
 
-    free(U); free(V); free(wrk1); free(wrk2); free(wrk3); free(VhU); free(UhU);
+    safe_free((void**)&U); safe_free((void**)&V); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3); safe_free((void**)&VhU); safe_free((void**)&UhU);
     return pass;
 }
 

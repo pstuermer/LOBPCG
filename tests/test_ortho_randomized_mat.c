@@ -15,6 +15,7 @@
 #include "lobpcg/types.h"
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
+#include "lobpcg/memory.h"
 
 #define TOL_F64 1e-10
 
@@ -42,12 +43,12 @@ int test_ortho_rmat_d(void) {
     const f64 eps_drop = 1e-14;
     const uint64_t max_n = n_u > n_v ? n_u : n_v;
 
-    f64 *U = calloc(m * n_u, sizeof(f64));
-    f64 *V = calloc(m * n_v, sizeof(f64));
-    f64 *mat = calloc(m * m, sizeof(f64));
-    f64 *wrk1 = calloc(m * max_n, sizeof(f64));
-    f64 *wrk2 = calloc(m * max_n, sizeof(f64));
-    f64 *wrk3 = calloc(max_n * max_n, sizeof(f64));
+    f64 *U = xcalloc(m * n_u, sizeof(f64));
+    f64 *V = xcalloc(m * n_v, sizeof(f64));
+    f64 *mat = xcalloc(m * m, sizeof(f64));
+    f64 *wrk1 = xcalloc(m * max_n, sizeof(f64));
+    f64 *wrk2 = xcalloc(m * max_n, sizeof(f64));
+    f64 *wrk3 = xcalloc(max_n * max_n, sizeof(f64));
 
     make_indef_diag_d(m, n_pos, mat);
 
@@ -65,15 +66,15 @@ int test_ortho_rmat_d(void) {
            (unsigned long)n_ret, (unsigned long)n_u);
 
     /* Check ||V^T * mat * U||_F < tol */
-    f64 *tmp = calloc(m * n_u, sizeof(f64));
-    f64 *VtMU = calloc(n_v * n_u, sizeof(f64));
+    f64 *tmp = xcalloc(m * n_u, sizeof(f64));
+    f64 *VtMU = xcalloc(n_v * n_u, sizeof(f64));
     d_gemm_nn(m, n_u, m, 1.0, mat, U, 0.0, tmp);
     d_gemm_tn(n_v, n_u, m, 1.0, V, tmp, 0.0, VtMU);
     f64 cross_err = d_nrm2(n_v * n_u, VtMU);
     printf("  ||V^T*mat*U||_F = %.3e (tol = %.3e)\n", cross_err, TOL_F64);
 
     /* Check ||U^T * mat * U - I_sig||_F < tol */
-    f64 *UtMU = calloc(n_u * n_u, sizeof(f64));
+    f64 *UtMU = xcalloc(n_u * n_u, sizeof(f64));
     d_gemm_tn(n_u, n_u, m, 1.0, U, tmp, 0.0, UtMU);
     for (uint64_t i = 0; i < n_u; i++)
         UtMU[i + i*n_u] = fabs(UtMU[i + i*n_u]) - 1.0;
@@ -81,8 +82,8 @@ int test_ortho_rmat_d(void) {
     printf("  ||U^T*mat*U - I_sig||_F = %.3e (tol = %.3e)\n", self_err, TOL_F64);
 
     int pass = (cross_err < TOL_F64) && (self_err < TOL_F64);
-    free(U); free(V); free(mat); free(wrk1); free(wrk2); free(wrk3);
-    free(tmp); free(VtMU); free(UtMU);
+    safe_free((void**)&U); safe_free((void**)&V); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&tmp); safe_free((void**)&VtMU); safe_free((void**)&UtMU);
     return pass;
 }
 
@@ -97,12 +98,12 @@ int test_ortho_rmat_z(void) {
     const f64 eps_drop = 1e-14;
     const uint64_t max_n = n_u > n_v ? n_u : n_v;
 
-    c64 *U = calloc(m * n_u, sizeof(c64));
-    c64 *V = calloc(m * n_v, sizeof(c64));
-    c64 *mat = calloc(m * m, sizeof(c64));
-    c64 *wrk1 = calloc(m * max_n, sizeof(c64));
-    c64 *wrk2 = calloc(m * max_n, sizeof(c64));
-    c64 *wrk3 = calloc(max_n * max_n, sizeof(c64));
+    c64 *U = xcalloc(m * n_u, sizeof(c64));
+    c64 *V = xcalloc(m * n_v, sizeof(c64));
+    c64 *mat = xcalloc(m * m, sizeof(c64));
+    c64 *wrk1 = xcalloc(m * max_n, sizeof(c64));
+    c64 *wrk2 = xcalloc(m * max_n, sizeof(c64));
+    c64 *wrk3 = xcalloc(max_n * max_n, sizeof(c64));
 
     make_indef_diag_z(m, n_pos, mat);
 
@@ -121,15 +122,15 @@ int test_ortho_rmat_z(void) {
            (unsigned long)n_ret, (unsigned long)n_u);
 
     /* Check ||V^H * mat * U||_F < tol */
-    c64 *tmp = calloc(m * n_u, sizeof(c64));
-    c64 *VhMU = calloc(n_v * n_u, sizeof(c64));
+    c64 *tmp = xcalloc(m * n_u, sizeof(c64));
+    c64 *VhMU = xcalloc(n_v * n_u, sizeof(c64));
     z_gemm_nn(m, n_u, m, 1.0, mat, U, 0.0, tmp);
     z_gemm_hn(n_v, n_u, m, 1.0, V, tmp, 0.0, VhMU);
     f64 cross_err = z_nrm2(n_v * n_u, VhMU);
     printf("  ||V^H*mat*U||_F = %.3e (tol = %.3e)\n", cross_err, TOL_F64);
 
     /* Check ||U^H * mat * U - I_sig||_F < tol */
-    c64 *UhMU = calloc(n_u * n_u, sizeof(c64));
+    c64 *UhMU = xcalloc(n_u * n_u, sizeof(c64));
     z_gemm_hn(n_u, n_u, m, 1.0, U, tmp, 0.0, UhMU);
     for (uint64_t i = 0; i < n_u; i++)
         UhMU[i + i*n_u] = fabs(creal(UhMU[i + i*n_u])) - 1.0;
@@ -137,8 +138,8 @@ int test_ortho_rmat_z(void) {
     printf("  ||U^H*mat*U - I_sig||_F = %.3e (tol = %.3e)\n", self_err, TOL_F64);
 
     int pass = (cross_err < TOL_F64) && (self_err < TOL_F64);
-    free(U); free(V); free(mat); free(wrk1); free(wrk2); free(wrk3);
-    free(tmp); free(VhMU); free(UhMU);
+    safe_free((void**)&U); safe_free((void**)&V); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&tmp); safe_free((void**)&VhMU); safe_free((void**)&UhMU);
     return pass;
 }
 

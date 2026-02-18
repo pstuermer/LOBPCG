@@ -17,6 +17,7 @@
 #include "lobpcg/types.h"
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
+#include "lobpcg/memory.h"
 
 #define TOL_F64 1e-12
 
@@ -27,8 +28,8 @@
  */
 static f64 ortho_error_mat_d(uint64_t m, uint64_t n, const f64 *U,
                               const f64 *mat) {
-    f64 *tmp = calloc(m * n, sizeof(f64));
-    f64 *G = calloc(n * n, sizeof(f64));
+    f64 *tmp = xcalloc(m * n, sizeof(f64));
+    f64 *G = xcalloc(n * n, sizeof(f64));
 
     /* tmp = mat * U */
     d_gemm_nn(m, n, m, 1.0, mat, U, 0.0, tmp);
@@ -43,14 +44,14 @@ static f64 ortho_error_mat_d(uint64_t m, uint64_t n, const f64 *U,
     }
 
     f64 err = d_nrm2(n * n, G);
-    free(tmp); free(G);
+    safe_free((void**)&tmp); safe_free((void**)&G);
     return err;
 }
 
 static f64 ortho_error_mat_z(uint64_t m, uint64_t n, const c64 *U,
                               const c64 *mat) {
-    c64 *tmp = calloc(m * n, sizeof(c64));
-    c64 *G = calloc(n * n, sizeof(c64));
+    c64 *tmp = xcalloc(m * n, sizeof(c64));
+    c64 *G = xcalloc(n * n, sizeof(c64));
 
     /* tmp = mat * U */
     z_gemm_nn(m, n, m, 1.0, mat, U, 0.0, tmp);
@@ -62,7 +63,7 @@ static f64 ortho_error_mat_z(uint64_t m, uint64_t n, const c64 *U,
         G[i + i*n] = fabs(creal(G[i + i*n])) - 1.0;
 
     f64 err = z_nrm2(n * n, G);
-    free(tmp); free(G);
+    safe_free((void**)&tmp); safe_free((void**)&G);
     return err;
 }
 
@@ -87,11 +88,11 @@ int test_svqb_mat_d(void) {
     const uint64_t m = 100, n = 10;
     const uint64_t n_pos = 60;  /* 60 positive, 40 negative */
 
-    f64 *U = calloc(m * n, sizeof(f64));
-    f64 *mat = calloc(m * m, sizeof(f64));
-    f64 *wrk1 = calloc(m * n, sizeof(f64));
-    f64 *wrk2 = calloc(m * n, sizeof(f64));
-    f64 *wrk3 = calloc(m * n, sizeof(f64));
+    f64 *U = xcalloc(m * n, sizeof(f64));
+    f64 *mat = xcalloc(m * m, sizeof(f64));
+    f64 *wrk1 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk2 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk3 = xcalloc(m * n, sizeof(f64));
 
     make_indef_diag_d(m, n_pos, mat);
 
@@ -107,7 +108,7 @@ int test_svqb_mat_d(void) {
     printf("  ||U^H*mat*U - I_sig||_F = %.3e (tol = %.3e)\n", err, TOL_F64 * n);
 
     int pass = (ncols == n) && (err < TOL_F64 * n);
-    free(U); free(mat); free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&U); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     return pass;
 }
 
@@ -115,11 +116,11 @@ int test_svqb_mat_z(void) {
     const uint64_t m = 100, n = 10;
     const uint64_t n_pos = 60;
 
-    c64 *U = calloc(m * n, sizeof(c64));
-    c64 *mat = calloc(m * m, sizeof(c64));
-    c64 *wrk1 = calloc(m * n, sizeof(c64));
-    c64 *wrk2 = calloc(m * n, sizeof(c64));
-    c64 *wrk3 = calloc(m * n, sizeof(c64));
+    c64 *U = xcalloc(m * n, sizeof(c64));
+    c64 *mat = xcalloc(m * m, sizeof(c64));
+    c64 *wrk1 = xcalloc(m * n, sizeof(c64));
+    c64 *wrk2 = xcalloc(m * n, sizeof(c64));
+    c64 *wrk3 = xcalloc(m * n, sizeof(c64));
 
     make_indef_diag_z(m, n_pos, mat);
 
@@ -134,7 +135,7 @@ int test_svqb_mat_z(void) {
     printf("  ||U^H*mat*U - I_sig||_F = %.3e (tol = %.3e)\n", err, TOL_F64 * n);
 
     int pass = (ncols == n) && (err < TOL_F64 * n);
-    free(U); free(mat); free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&U); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     return pass;
 }
 
@@ -142,11 +143,11 @@ int test_svqb_mat_z(void) {
 int test_svqb_mat_identity_d(void) {
     const uint64_t m = 100, n = 10;
 
-    f64 *U = calloc(m * n, sizeof(f64));
-    f64 *mat = calloc(m * m, sizeof(f64));
-    f64 *wrk1 = calloc(m * n, sizeof(f64));
-    f64 *wrk2 = calloc(m * n, sizeof(f64));
-    f64 *wrk3 = calloc(m * n, sizeof(f64));
+    f64 *U = xcalloc(m * n, sizeof(f64));
+    f64 *mat = xcalloc(m * m, sizeof(f64));
+    f64 *wrk1 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk2 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk3 = xcalloc(m * n, sizeof(f64));
 
     /* mat = I */
     for (uint64_t i = 0; i < m; i++) mat[i + i*m] = 1.0;
@@ -157,14 +158,14 @@ int test_svqb_mat_identity_d(void) {
     d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
 
     /* Check standard orthonormality: ||U^T*U - I||_F */
-    f64 *G = calloc(n * n, sizeof(f64));
+    f64 *G = xcalloc(n * n, sizeof(f64));
     d_gemm_tn(n, n, m, 1.0, U, U, 0.0, G);
     for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0;
     f64 err = d_nrm2(n * n, G);
     printf("  ||U^T*U - I||_F = %.3e (tol = %.3e)\n", err, TOL_F64 * n);
 
     int pass = (err < TOL_F64 * n);
-    free(U); free(mat); free(wrk1); free(wrk2); free(wrk3); free(G);
+    safe_free((void**)&U); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3); safe_free((void**)&G);
     return pass;
 }
 

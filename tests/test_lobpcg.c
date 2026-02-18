@@ -38,7 +38,7 @@ void laplacian_matvec_d(const LinearOperator_d_t *op, const f64 *x, f64 *y) {
 }
 
 void laplacian_cleanup(linop_ctx_t *ctx) {
-    free(ctx);
+    safe_free((void**)&ctx);
 }
 
 /* Test LOBPCG on 1D Laplacian */
@@ -51,7 +51,7 @@ int test_lobpcg_laplacian(void) {
     /* Create 1D Laplacian */
     f64 L = 1.0;
     f64 h = L / (n + 1);
-    laplacian_ctx_t *ctx = malloc(sizeof(laplacian_ctx_t));
+    laplacian_ctx_t *ctx = xcalloc(1, sizeof(laplacian_ctx_t));
     ctx->n = n;
     ctx->h = h;
     ctx->h2_inv = 1.0 / (h * h);

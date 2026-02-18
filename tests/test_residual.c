@@ -11,6 +11,7 @@
 #include "lobpcg.h"
 #include "linop.h"
 #include "lobpcg/blas_wrapper.h"
+#include "lobpcg/memory.h"
 
 #define TEST_TOLERANCE 1e-12
 
@@ -29,8 +30,8 @@ void diag_matvec_d(const LinearOperator_d_t *op, const f64 *x, f64 *y) {
 
 void diag_cleanup(linop_ctx_t *ctx) {
     diag_ctx_t *dctx = (diag_ctx_t*)ctx;
-    free(dctx->diag);
-    free(dctx);
+    safe_free((void**)&dctx->diag);
+    safe_free((void**)&dctx);
 }
 
 /* Test get_residual with exact eigenvectors */
@@ -39,9 +40,9 @@ int test_get_residual(void) {
     const uint64_t nev = 3;
 
     /* Create diagonal matrix with eigenvalues 1, 2, 3, ..., n */
-    diag_ctx_t *ctx = malloc(sizeof(diag_ctx_t));
+    diag_ctx_t *ctx = xcalloc(1, sizeof(diag_ctx_t));
     ctx->n = n;
-    ctx->diag = malloc(n * sizeof(f64));
+    ctx->diag = xcalloc(n, sizeof(f64));
     for (uint64_t i = 0; i < n; i++) {
         ctx->diag[i] = (f64)(i + 1);
     }
@@ -54,16 +55,16 @@ int test_get_residual(void) {
     A.ctx = ctx;
 
     /* Exact eigenvectors (standard basis) and eigenvalues */
-    f64 *X = calloc(n * nev, sizeof(f64));
-    f64 *eigVal = calloc(nev, sizeof(f64));
+    f64 *X = xcalloc(n * nev, sizeof(f64));
+    f64 *eigVal = xcalloc(nev, sizeof(f64));
     for (uint64_t i = 0; i < nev; i++) {
         X[i + i*n] = 1.0;  /* e_i */
         eigVal[i] = (f64)(i + 1);
     }
 
     /* Compute residual */
-    f64 *R = calloc(n * nev, sizeof(f64));
-    f64 *wrk = calloc(n * nev, sizeof(f64));
+    f64 *R = xcalloc(n * nev, sizeof(f64));
+    f64 *wrk = xcalloc(n * nev, sizeof(f64));
 
     d_get_residual(n, nev, X, NULL, R, eigVal, wrk, &A, NULL);
 
@@ -73,7 +74,7 @@ int test_get_residual(void) {
 
     int pass = (R_norm < TEST_TOLERANCE);
 
-    free(X); free(eigVal); free(R); free(wrk);
+    safe_free((void**)&X); safe_free((void**)&eigVal); safe_free((void**)&R); safe_free((void**)&wrk);
     diag_cleanup(ctx);
 
     return pass;
@@ -85,22 +86,22 @@ int test_get_residual_norm(void) {
     const uint64_t nev = 3;
 
     /* Create small random residuals */
-    f64 *W = calloc(n * nev, sizeof(f64));
+    f64 *W = xcalloc(n * nev, sizeof(f64));
     for (uint64_t i = 0; i < n * nev; i++) {
         W[i] = 1e-8 * ((f64)rand() / RAND_MAX);
     }
 
     /* Eigenvalues */
-    f64 *eigVals = calloc(nev, sizeof(f64));
+    f64 *eigVals = xcalloc(nev, sizeof(f64));
     for (uint64_t i = 0; i < nev; i++) {
         eigVals[i] = (f64)(i + 1);
     }
 
     /* Compute residual norms */
-    f64 *resNorm = calloc(nev, sizeof(f64));
-    f64 *wrk1 = calloc(n * nev, sizeof(f64));
-    f64 *wrk2 = calloc(n * nev, sizeof(f64));
-    f64 *wrk3 = calloc(nev * nev, sizeof(f64));
+    f64 *resNorm = xcalloc(nev, sizeof(f64));
+    f64 *wrk1 = xcalloc(n * nev, sizeof(f64));
+    f64 *wrk2 = xcalloc(n * nev, sizeof(f64));
+    f64 *wrk3 = xcalloc(nev * nev, sizeof(f64));
 
     f64 ANorm = 10.0;
     f64 BNorm = 1.0;
@@ -116,7 +117,7 @@ int test_get_residual_norm(void) {
         if (resNorm[i] > 1e-7) pass = 0;
     }
 
-    free(W); free(eigVals); free(resNorm); free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&W); safe_free((void**)&eigVals); safe_free((void**)&resNorm); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 
     return pass;
 }

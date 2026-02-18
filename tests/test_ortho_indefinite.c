@@ -18,6 +18,7 @@
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
 #include "linop.h"
+#include "lobpcg/memory.h"
 
 #define TOL_F32 1e-4
 #define TOL_F64 1e-10
@@ -68,13 +69,13 @@ static void indef_diag_matvec_z(const LinearOperator_z_t *op, c64 *x, c64 *y) {
 }
 
 static void indef_diag_cleanup(linop_ctx_t *ctx) {
-    if (ctx && ctx->data) free(ctx->data);
-    if (ctx) free(ctx);
+    if (ctx && ctx->data) safe_free((void**)&ctx->data);
+    if (ctx) safe_free((void**)&ctx);
 }
 
 static LinearOperator_d_t *create_indef_B_d(uint64_t n, uint64_t n_pos) {
-    linop_ctx_t *ctx = malloc(sizeof(linop_ctx_t));
-    indef_diag_ctx_t *data = malloc(sizeof(indef_diag_ctx_t));
+    linop_ctx_t *ctx = xcalloc(1,sizeof(linop_ctx_t));
+    indef_diag_ctx_t *data = xcalloc(1,sizeof(indef_diag_ctx_t));
     data->n = n;
     data->n_pos = n_pos;
     ctx->data = data;
@@ -83,8 +84,8 @@ static LinearOperator_d_t *create_indef_B_d(uint64_t n, uint64_t n_pos) {
 }
 
 static LinearOperator_z_t *create_indef_B_z(uint64_t n, uint64_t n_pos) {
-    linop_ctx_t *ctx = malloc(sizeof(linop_ctx_t));
-    indef_diag_ctx_t *data = malloc(sizeof(indef_diag_ctx_t));
+    linop_ctx_t *ctx = xcalloc(1,sizeof(linop_ctx_t));
+    indef_diag_ctx_t *data = xcalloc(1,sizeof(indef_diag_ctx_t));
     data->n = n;
     data->n_pos = n_pos;
     ctx->data = data;
@@ -156,11 +157,11 @@ static f64 B_ortho_error_d(uint64_t m, uint64_t n_u, uint64_t n_v,
         B->matvec(B, (f64*)&U[j * m], &wrk[j * m]);
 
     /* Compute G = V^T * BU (n_v x n_u) */
-    f64 *G = calloc(n_v * n_u, sizeof(f64));
+    f64 *G = xcalloc(n_v * n_u, sizeof(f64));
     d_gemm_tn(n_v, n_u, m, 1.0, V, wrk, 0.0, G);
 
     f64 err = matrix_nrm_d(n_v, n_u, G);
-    free(G);
+    safe_free((void**)&G);
     return err;
 }
 
@@ -172,11 +173,11 @@ static f64 B_ortho_error_z(uint64_t m, uint64_t n_u, uint64_t n_v,
         B->matvec(B, (c64*)&U[j * m], &wrk[j * m]);
 
     /* Compute G = V^H * BU (n_v x n_u) */
-    c64 *G = calloc(n_v * n_u, sizeof(c64));
+    c64 *G = xcalloc(n_v * n_u, sizeof(c64));
     z_gemm_hn(n_v, n_u, m, 1.0, V, wrk, 0.0, G);
 
     f64 err = matrix_nrm_z(n_v, n_u, G);
-    free(G);
+    safe_free((void**)&G);
     return err;
 }
 
@@ -197,7 +198,7 @@ static f64 B_orthonorm_error_d(uint64_t m, uint64_t n,
         B->matvec(B, (f64*)&U[j * m], &wrk[j * m]);
 
     /* G = U^T * BU */
-    f64 *G = calloc(n * n, sizeof(f64));
+    f64 *G = xcalloc(n * n, sizeof(f64));
     d_gemm_tn(n, n, m, 1.0, U, wrk, 0.0, G);
 
     /* Check off-diagonal elements should be zero */
@@ -218,7 +219,7 @@ static f64 B_orthonorm_error_d(uint64_t m, uint64_t n,
         if (fabs(d) > diag_err) diag_err = fabs(d);
     }
 
-    free(G);
+    safe_free((void**)&G);
     return (off_diag_err > diag_err) ? off_diag_err : diag_err;
 }
 
@@ -229,7 +230,7 @@ static f64 B_orthonorm_error_z(uint64_t m, uint64_t n,
         B->matvec(B, (c64*)&U[j * m], &wrk[j * m]);
 
     /* G = U^H * BU */
-    c64 *G = calloc(n * n, sizeof(c64));
+    c64 *G = xcalloc(n * n, sizeof(c64));
     z_gemm_hn(n, n, m, 1.0, U, wrk, 0.0, G);
 
     /* Check off-diagonal elements should be zero */
@@ -252,7 +253,7 @@ static f64 B_orthonorm_error_z(uint64_t m, uint64_t n,
         if (err > diag_err) diag_err = err;
     }
 
-    free(G);
+    safe_free((void**)&G);
     return (off_diag_err > diag_err) ? off_diag_err : diag_err;
 }
 
@@ -278,13 +279,13 @@ TEST(d_ortho_indefinite_basic) {
     LinearOperator_d_t *B = create_indef_B_d(m, n_pos);
 
     /* Allocate matrices */
-    f64 *V = calloc(m * n_v, sizeof(f64));
-    f64 *U = calloc(m * n_u, sizeof(f64));
+    f64 *V = xcalloc(m * n_v, sizeof(f64));
+    f64 *U = xcalloc(m * n_u, sizeof(f64));
     uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
     uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
-    f64 *wrk1 = calloc(wrk_size, sizeof(f64));
-    f64 *wrk2 = calloc(wrk_size, sizeof(f64));
-    f64 *wrk3 = calloc(coef_size, sizeof(f64));
+    f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(coef_size, sizeof(f64));
 
     /* Fill V and U with random values */
     fill_random_d(m * n_v, V);
@@ -294,7 +295,7 @@ TEST(d_ortho_indefinite_basic) {
     d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
 
     /* Compute signature matrix for V */
-    f64 *sig = calloc(n_v * n_v, sizeof(f64));
+    f64 *sig = xcalloc(n_v * n_v, sizeof(f64));
     for (uint64_t j = 0; j < n_v; j++)
         B->matvec(B, &V[j * m], &wrk1[j * m]);
     d_gemm_tn(n_v, n_v, m, 1.0, V, wrk1, 0.0, sig);
@@ -314,8 +315,8 @@ TEST(d_ortho_indefinite_basic) {
     ASSERT(norm_err < TOL_F64 * n_u);
 
     /* Cleanup */
-    free(V); free(U); free(sig);
-    free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&V); safe_free((void**)&U); safe_free((void**)&sig);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     linop_destroy_d(B);
 }
 
@@ -330,13 +331,13 @@ TEST(d_ortho_indefinite_no_sig) {
 
     LinearOperator_d_t *B = create_indef_B_d(m, n_pos);
 
-    f64 *V = calloc(m * n_v, sizeof(f64));
-    f64 *U = calloc(m * n_u, sizeof(f64));
+    f64 *V = xcalloc(m * n_v, sizeof(f64));
+    f64 *U = xcalloc(m * n_u, sizeof(f64));
     uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
     uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
-    f64 *wrk1 = calloc(wrk_size, sizeof(f64));
-    f64 *wrk2 = calloc(wrk_size, sizeof(f64));
-    f64 *wrk3 = calloc(coef_size, sizeof(f64));
+    f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(coef_size, sizeof(f64));
 
     fill_random_d(m * n_v, V);
     fill_random_d(m * n_u, U);
@@ -353,8 +354,8 @@ TEST(d_ortho_indefinite_no_sig) {
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
 
-    free(V); free(U);
-    free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     linop_destroy_d(B);
 }
 
@@ -370,13 +371,13 @@ TEST(z_ortho_indefinite_basic) {
 
     LinearOperator_z_t *B = create_indef_B_z(m, n_pos);
 
-    c64 *V = calloc(m * n_v, sizeof(c64));
-    c64 *U = calloc(m * n_u, sizeof(c64));
+    c64 *V = xcalloc(m * n_v, sizeof(c64));
+    c64 *U = xcalloc(m * n_u, sizeof(c64));
     uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
     uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
-    c64 *wrk1 = calloc(wrk_size, sizeof(c64));
-    c64 *wrk2 = calloc(wrk_size, sizeof(c64));
-    c64 *wrk3 = calloc(coef_size, sizeof(c64));
+    c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(coef_size, sizeof(c64));
 
     fill_random_z(m * n_v, V);
     fill_random_z(m * n_u, U);
@@ -393,8 +394,8 @@ TEST(z_ortho_indefinite_basic) {
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
 
-    free(V); free(U);
-    free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     linop_destroy_z(B);
 }
 
@@ -406,13 +407,13 @@ TEST(z_ortho_indefinite_larger) {
 
     LinearOperator_z_t *B = create_indef_B_z(m, n_pos);
 
-    c64 *V = calloc(m * n_v, sizeof(c64));
-    c64 *U = calloc(m * n_u, sizeof(c64));
+    c64 *V = xcalloc(m * n_v, sizeof(c64));
+    c64 *U = xcalloc(m * n_u, sizeof(c64));
     uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
     uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
-    c64 *wrk1 = calloc(wrk_size, sizeof(c64));
-    c64 *wrk2 = calloc(wrk_size, sizeof(c64));
-    c64 *wrk3 = calloc(coef_size, sizeof(c64));
+    c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(coef_size, sizeof(c64));
 
     fill_random_z(m * n_v, V);
     fill_random_z(m * n_u, U);
@@ -426,8 +427,8 @@ TEST(z_ortho_indefinite_larger) {
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
 
-    free(V); free(U);
-    free(wrk1); free(wrk2); free(wrk3);
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     linop_destroy_z(B);
 }
 
