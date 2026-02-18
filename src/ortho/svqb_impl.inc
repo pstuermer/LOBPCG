@@ -2,6 +2,10 @@
  * @file svqb_impl.inc
  * @brief Type-generic SVQB orthogonalization
  *
+ * Reference: Duersch & Shao, "Simultaneous block diagonalization of Gram
+ * matrices for orthonormalization", SIAM J. Matrix Anal. Appl. 39(3), 2018
+ * (Algorithm 4)
+ *
  * Macros required: PREFIX, CTYPE, RTYPE, LINOP
  */
 
@@ -24,88 +28,90 @@
   #define CABS(x) fabs(x)
 #endif
 
-/* Fill lower triangle from upper for symmetric/Hermitian matrix */
-static void FN(fill_lower)(uint64_t n, CTYPE *A) {
-    for (uint64_t j = 0; j < n; j++)
-        for (uint64_t i = j + 1; i < n; i++)
-#ifdef CTYPE_IS_COMPLEX
-            A[i + j*n] = conj(A[j + i*n]);
-#else
-            A[i + j*n] = A[j + i*n];
-#endif
-}
-
-uint64_t FN(svqb)(const uint64_t m, const uint64_t n, const RTYPE tau,
+/**
+ * svqb - SVQB orthogonalization via eigendecomposition of scaled Gram matrix
+ *
+ * Orthonormalizes U w.r.t. B-inner product (B=NULL → standard inner product).
+ * Small eigenvalues are clamped to tau*max(|λ|) for numerical stability.
+ * Column dropping (drop='y') is not implemented; randomization is handled
+ * separately in ortho_randomize.
+ *
+ * @param rows   Number of rows of U (problem size)
+ * @param cols   Number of columns of U (block size)
+ * @param tau    Regularization threshold for small eigenvalues
+ * @param drop   Drop mode (unused, reserved for 'y' = drop small columns)
+ * @param U      [in/out] rows x cols matrix, B-orthonormalized on output
+ * @param wrk1   Workspace, cols x cols elements
+ * @param wrk2   Workspace, max(rows*cols, cols*cols) elements
+ * @param wrk3   Workspace, rows x cols elements
+ * @param B      B-operator for generalized inner product, or NULL for identity
+ *
+ * @return Number of columns retained (always cols, no dropping)
+ */
+uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
                   const char drop, CTYPE *restrict U,
                   CTYPE *restrict wrk1, CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                   LINOP *B) {
-    if (n == 0) return 0;
+    if (0 == cols) return 0;
     (void)drop;  /* drop='y' not implemented */
 
-    RTYPE *eigvals = xcalloc(n, sizeof(RTYPE));
-    RTYPE *D = xcalloc(n, sizeof(RTYPE));
+    RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
+    RTYPE *D = xcalloc(cols, sizeof(RTYPE));
 
-    /* 1. Gram matrix G = U^H*B*U in wrk1 */
-    memset(wrk1, 0, n*n*sizeof(CTYPE));
-    if (B == NULL) {
+    /* 1. Gram matrix G = U^H*B*U in wrk1 (upper triangle) */
+    memset(wrk1, 0, cols*cols*sizeof(CTYPE));
+    if (NULL == B) {
 #ifdef CTYPE_IS_COMPLEX
-        FN(herk)(m, n, (RTYPE)1, U, (RTYPE)0, wrk1);
+        FN(herk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
 #else
-        FN(syrk)(m, n, (RTYPE)1, U, (RTYPE)0, wrk1);
+        FN(syrk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
 #endif
     } else {
-        for (uint64_t j = 0; j < n; j++)
-            B->matvec(B, &U[j*m], &wrk2[j*m]);
+        for (uint64_t j = 0; j < cols; j++)
+            B->matvec(B, &U[j*rows], &wrk2[j*rows]);
 #ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(n, n, m, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
+        FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
 #else
-	FN(gemm_tn)(n, n, m, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
+        FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
 #endif
     }
-    FN(fill_lower)(n, wrk1);
 
     /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
-    for (uint64_t i = 0; i < n; i++) {
-        RTYPE gii = CABS(wrk1[i + i*n]);
+    for (uint64_t i = 0; i < cols; i++) {
+        RTYPE gii = CABS(wrk1[i + i*cols]);
         D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
     }
 
-    /* 3. Scale: G_scaled = D*G*D */
-    for (uint64_t j = 0; j < n; j++)
-        for (uint64_t i = 0; i < n; i++)
-            wrk1[i + j*n] *= D[i] * D[j];
+    /* 3. Scale upper triangle: G̃ = D*G*D */
+    for (uint64_t j = 0; j < cols; j++)
+        for (uint64_t i = 0; i <= j; i++)
+            wrk1[i + j*cols] *= D[i] * D[j];
 
-    /* 4. Eigensolve */
-    if (FN(eig)(n, wrk1, eigvals) != 0) {
-        safe_free((void**)&eigvals); safe_free((void**)&D); return n;
+    /* 4. Eigensolve G̃ = V Λ V^H (reads upper triangle) */
+    if (0 != FN(eig)(cols, wrk1, eigvals)) {
+        safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
     }
 
     /* 5. Threshold */
     RTYPE maxeig = 0;
-    for (uint64_t i = 0; i < n; i++)
-        if (fabs(eigvals[i]) > maxeig) maxeig = fabs(eigvals[i]);
+    for (uint64_t i = 0; i < cols; i++)
+        if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
     RTYPE thresh = tau * maxeig;
 
-    /* 6. Transform: U_new = U * D * V * D_final */
-    /*    D_final_ii = 1/sqrt(max(|λ_i|, thresh)) */
-    /* T = D*V in wrk2 */
-    for (uint64_t j = 0; j < n; j++)
-        for (uint64_t i = 0; i < n; i++)
-            wrk2[i + j*n] = D[i] * wrk1[i + j*n];
-
-    /* T2 = T * D_final in wrk3 */
-    for (uint64_t j = 0; j < n; j++) {
-        RTYPE df = (RTYPE)1/sqrt(MAX(fabs(eigvals[j]), thresh));
-        for (uint64_t i = 0; i < n; i++)
-            wrk3[i + j*n] = wrk2[i + j*n] * df;
+    /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
+     *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) */
+    for (uint64_t j = 0; j < cols; j++) {
+        RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
+        for (uint64_t i = 0; i < cols; i++)
+            wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
     }
 
-    /* U = U * T2 */
-    FN(gemm_nn)(m, n, n, (CTYPE)1, U, wrk3, (CTYPE)0, wrk2);
-    memcpy(U, wrk2, m*n*sizeof(CTYPE));
+    /* U_new = U * T */
+    FN(gemm_nn)(rows, cols, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
+    memcpy(U, wrk3, rows*cols*sizeof(CTYPE));
 
     safe_free((void**)&eigvals); safe_free((void**)&D);
-    return n;
+    return cols;
 }
 
 #undef CONCAT2
