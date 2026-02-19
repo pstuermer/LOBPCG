@@ -55,13 +55,15 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     (void)ndrop;
 
     const RTYPE tol_skip = 5.0e-3;  /* Condition number threshold */
+    // TODO: this is not correct, should be mult*nx - ndrop - nconv
+    // to get the correct matrix size
     const uint64_t sizeSub = mult * nx;
 
     RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
     RTYPE *D = xcalloc(sizeSub, sizeof(RTYPE));
     CTYPE *tau = xcalloc(sizeSub, sizeof(CTYPE));
 
-    /* 1. Gram matrix G = S^H * B * S in wrk1 */
+    /* 1. Gram matrix G = S^H * B * S in wrk1 (upper triangle) */
     memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
     if (NULL == B) {
 #ifdef CTYPE_IS_COMPLEX
@@ -81,17 +83,6 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
 #endif
     }
 
-    /* Fill lower triangle */
-    for (uint64_t j = 0; j < sizeSub; j++) {
-        for (uint64_t i = j + 1; i < sizeSub; i++) {
-#ifdef CTYPE_IS_COMPLEX
-            wrk1[i + j*sizeSub] = conj(wrk1[j + i*sizeSub]);
-#else
-            wrk1[i + j*sizeSub] = wrk1[j + i*sizeSub];
-#endif
-        }
-    }
-
     /* 2. Diagonal scaling */
     for (uint64_t i = 0; i < sizeSub; i++) {
         RTYPE gii = CABS(wrk1[i + i*sizeSub]);
@@ -105,7 +96,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
         }
     }
 
-    /* 4. Cholesky factorization */
+    /* 4. Cholesky factorization: wrk1 = R^H * R (R in upper triangle) */
     if (0 != FN(potrf)(sizeSub, wrk1)) {
         fprintf(stderr, "rayleigh_ritz_modified: Cholesky failed\n");
         *useOrtho = 2;
@@ -130,16 +121,13 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
         }
     }
 
-    /* 6. Compute D_inv_L = D * inv(L^H) in wrk3 */
+    /* 6. Compute D_inv_R = D * inv(R) in wrk3
+     *    Set wrk3 = D, solve wrk3 * R = D  =>  wrk3 = D * inv(R) */
     memset(wrk3, 0, sizeSub * sizeSub * sizeof(CTYPE));
     for (uint64_t i = 0; i < sizeSub; i++) {
         wrk3[i + i*sizeSub] = (CTYPE)D[i];
     }
-#ifdef CTYPE_IS_COMPLEX
-    FN(trsm_llh)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
-#else
-    FN(trsm_llt)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
-#endif
+    FN(trsm_run)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
 
     /* 7. Compute AS = A * S in wrk2 */
     for (uint64_t j = 0; j < sizeSub; j++) {
@@ -153,7 +141,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
 #endif
 
-    /* 9. Transform: Ap_scaled = D_inv_L^H * Ap * D_inv_L */
+    /* 9. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R */
     FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3, (CTYPE)0, Cx);
 #ifdef CTYPE_IS_COMPLEX
     FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, Cx, (CTYPE)0, wrk1);
@@ -161,18 +149,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, Cx, (CTYPE)0, wrk1);
 #endif
 
-    /* Fill lower triangle */
-    for (uint64_t j = 0; j < sizeSub; j++) {
-        for (uint64_t i = j + 1; i < sizeSub; i++) {
-#ifdef CTYPE_IS_COMPLEX
-            wrk1[i + j*sizeSub] = conj(wrk1[j + i*sizeSub]);
-#else
-            wrk1[i + j*sizeSub] = wrk1[j + i*sizeSub];
-#endif
-        }
-    }
-
-    /* 10. Eigensolve */
+    /* 10. Eigensolve (reads upper triangle) */
     if (0 != FN(eig)(sizeSub, wrk1, eigvals_r)) {
         fprintf(stderr, "rayleigh_ritz_modified: eigensolve failed\n");
         safe_free((void**)&eigvals_r);
@@ -182,7 +159,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     }
     /* wrk1 now contains eigenvectors (column-major) */
 
-    /* 11. Extract Cx = D_inv_L * [first nx columns of wrk1] */
+    /* 11. Extract Cx = D_inv_R * [first nx columns of wrk1] */
     /* First nx eigenvectors -> Cx */
     memset(Cx, 0, sizeSub * nx * sizeof(CTYPE));
     for (uint64_t j = 0; j < nx; j++) {
@@ -190,7 +167,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
             Cx[i + j*sizeSub] = wrk1[i + j*sizeSub];
         }
     }
-    /* Cx = D_inv_L * Cx */
+    /* Cx = D_inv_R * Cx */
     FN(gemm_nn)(sizeSub, nx, sizeSub, (CTYPE)1, wrk3, Cx, (CTYPE)0, wrk2);
     memcpy(Cx, wrk2, sizeSub * nx * sizeof(CTYPE));
 
@@ -238,7 +215,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
         }
     }
 
-    /* 15. Cp_tmp = D_inv_L * Cp */
+    /* 15. Cp_tmp = D_inv_R * Cp */
     FN(gemm_nn)(sizeSub, n_remainder, sizeSub, (CTYPE)1, wrk3, Cp, (CTYPE)0, wrk1);
 
     /* 16. Cp_final = Cp_tmp * Q_orth */

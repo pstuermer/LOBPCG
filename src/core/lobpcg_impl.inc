@@ -23,6 +23,9 @@
   #define CREAL(x) (x)
 #endif
 
+// TODO: these are not gaussian random?
+// There is an implementation in the reference for that
+// fix later
 /* Helper: Fill array with Gaussian random values */
 static void FN(fill_random)(uint64_t n, CTYPE *x) {
     static int seed_initialized = 0;
@@ -42,6 +45,7 @@ static void FN(fill_random)(uint64_t n, CTYPE *x) {
     }
 }
 
+// TODO: Check if this is the same as in reference implementation
 /* Helper: Estimate ||A|| via power iteration */
 static RTYPE FN(estimate_norm)(uint64_t size, LINOP *A, CTYPE *wrk1, CTYPE *wrk2) {
     const uint64_t max_iter = 10;
@@ -65,6 +69,11 @@ static RTYPE FN(estimate_norm)(uint64_t size, LINOP *A, CTYPE *wrk1, CTYPE *wrk2
 }
 
 /* Helper: Assemble S = [X, P, W] or [X, W] */
+// TODO: this is redundant and takes a lot of memory. S in itself is
+// already an array of [X,P,W], so there is no need to also store
+// X, P and W independently
+// you can also see that further down when you first define X,P, and W
+// in the main LOBPCG iteration
 static void FN(setup_S)(uint64_t size, uint64_t sizeSub, uint64_t iter,
                         CTYPE *X, CTYPE *P, CTYPE *W, CTYPE *S) {
     /* X is first sizeSub columns */
@@ -81,6 +90,7 @@ static void FN(setup_S)(uint64_t size, uint64_t sizeSub, uint64_t iter,
 }
 
 /* Helper: Project back X = S * C */
+// TODO: in the long term, get rid of this
 static void FN(project_back)(uint64_t size, uint64_t sizeSub, uint64_t mult,
                              CTYPE *S, CTYPE *C, CTYPE *X, CTYPE *wrk) {
     /* X = S * C where S is (size x mult*sizeSub), C is (mult*sizeSub x sizeSub) */
@@ -111,6 +121,9 @@ static void FN(project_back)(uint64_t size, uint64_t sizeSub, uint64_t mult,
 void FN(lobpcg)(FN(lobpcg_t) *alg) {
     const uint64_t size = alg->size;
     const uint64_t nev = alg->nev;
+    // TODO: the comment here that usually sizeSub == nev, is not true
+    // in practice one should always choose a sizeSub that is
+    // MAX(0.1*nev, 5) bigger than nev
     const uint64_t sizeSub = alg->sizeSub;  /* Usually == nev */
     const RTYPE eps_ortho = 1e-12;
     const RTYPE eps_drop = 1e-12;
@@ -130,9 +143,21 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
         FN(fill_random)(size * sizeSub, X);
     }
 
+    /* Workspace for real eigenvalues (used by both initial and modified RR) */
+    RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
+
     /* Initial Rayleigh-Ritz on X */
-    FN(rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
+    FN(rayleigh_ritz)(size, sizeSub, X, alg->Cx, eigvals_r,
                       alg->wrk1, alg->wrk2, alg->wrk3, alg->A, alg->B);
+
+    /* Copy real eigenvalues into CTYPE eigVals array */
+    for (uint64_t i = 0; i < sizeSub; i++) {
+#ifdef CTYPE_IS_COMPLEX
+        alg->eigVals[i] = eigvals_r[i] + 0*I;
+#else
+        alg->eigVals[i] = eigvals_r[i];
+#endif
+    }
 
     /* Project back: X = X * Cx */
     FN(project_back)(size, sizeSub, 1, X, alg->Cx, X, alg->wrk4);
@@ -143,9 +168,6 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     /* Compute initial residual norms */
     FN(get_residual_norm)(size, sizeSub, nev, W, alg->eigVals, alg->resNorm,
                           alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
-
-    /* Main iteration loop */
-    RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
     uint8_t useOrtho = 0;
     alg->converged = 0;
     alg->iter = 0;

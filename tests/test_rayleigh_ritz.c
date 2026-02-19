@@ -145,7 +145,7 @@ int test_rr_z(void) {
 
     c64 *S    = xcalloc(n * nev, sizeof(c64));
     c64 *Cx   = xcalloc(nev * nev, sizeof(c64));
-    c64 *eigVal = xcalloc(nev, sizeof(c64));
+    f64 *eigVal = xcalloc(nev, sizeof(f64));
     c64 *wrk1 = xcalloc(nev * nev, sizeof(c64));
     c64 *wrk2 = xcalloc(n * nev, sizeof(c64));
     c64 *wrk3 = xcalloc(nev * nev, sizeof(c64));
@@ -156,7 +156,7 @@ int test_rr_z(void) {
 
     f64 max_err = 0;
     for (uint64_t i = 0; i < nev; i++) {
-        f64 err = cabs(eigVal[i] - (f64)(i + 1));
+        f64 err = fabs(eigVal[i] - (f64)(i + 1));
         if (err > max_err) max_err = err;
     }
 
@@ -184,7 +184,7 @@ int test_rr_c(void) {
 
     c32 *S    = xcalloc(n * nev, sizeof(c32));
     c32 *Cx   = xcalloc(nev * nev, sizeof(c32));
-    c32 *eigVal = xcalloc(nev, sizeof(c32));
+    f32 *eigVal = xcalloc(nev, sizeof(f32));
     c32 *wrk1 = xcalloc(nev * nev, sizeof(c32));
     c32 *wrk2 = xcalloc(n * nev, sizeof(c32));
     c32 *wrk3 = xcalloc(nev * nev, sizeof(c32));
@@ -195,7 +195,7 @@ int test_rr_c(void) {
 
     f32 max_err = 0;
     for (uint64_t i = 0; i < nev; i++) {
-        f32 err = cabsf(eigVal[i] - (f32)(i + 1));
+        f32 err = fabsf(eigVal[i] - (f32)(i + 1));
         if (err > max_err) max_err = err;
     }
 

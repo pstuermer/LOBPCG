@@ -298,16 +298,18 @@ static inline void z_herk(uint64_t nrows_a, uint64_t ncols_a,
 }
 
 /* --------------------------------------------------------------------
- * trsm: Solve L*X = alpha*B (lower triangular)
+ * trsm: Triangular solve variants
  *
  * Parameters:
- *   n:    system size (L is n x n)
- *   nrhs: number of right-hand sides (B is n x nrhs)
+ *   n:    system size (triangular matrix is n x n)
+ *   nrhs: number of right-hand sides (B is n x nrhs for left, m x n for right)
  *
  * Variants:
- *   _lln: L * X = B      (no transpose)
- *   _llt: L^T * X = B    (transpose, real)
- *   _llh: L^H * X = B    (conjugate transpose, complex)
+ *   _lln: L * X = B      (Left, Lower, NoTrans)
+ *   _llt: L^T * X = B    (Left, Lower, Trans, real)
+ *   _llh: L^H * X = B    (Left, Lower, ConjTrans, complex)
+ *   _run: X * R = B      (Right, Upper, NoTrans)
+ *         m: rows of B, n: cols of B (= size of R)
  * ------------------------------------------------------------------ */
 static inline void s_trsm_lln(uint64_t n, uint64_t nrhs, f32 alpha,
                               const f32 *L, f32 *B) {
@@ -357,28 +359,54 @@ static inline void z_trsm_llh(uint64_t n, uint64_t nrhs, c64 alpha,
                 (int)n, (int)nrhs, &alpha, L, (int)n, B, (int)n);
 }
 
+/* trsm_run: solve X * R = alpha * B  (Right, Upper, NoTrans)
+ *   m: rows of B, n: cols of B (= order of R) */
+static inline void s_trsm_run(uint64_t m, uint64_t n, f32 alpha,
+                               const f32 *R, f32 *B) {
+    cblas_strsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit,
+                (int)m, (int)n, alpha, R, (int)n, B, (int)m);
+}
+
+static inline void d_trsm_run(uint64_t m, uint64_t n, f64 alpha,
+                               const f64 *R, f64 *B) {
+    cblas_dtrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit,
+                (int)m, (int)n, alpha, R, (int)n, B, (int)m);
+}
+
+static inline void c_trsm_run(uint64_t m, uint64_t n, c32 alpha,
+                               const c32 *R, c32 *B) {
+    cblas_ctrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit,
+                (int)m, (int)n, &alpha, R, (int)n, B, (int)m);
+}
+
+static inline void z_trsm_run(uint64_t m, uint64_t n, c64 alpha,
+                               const c64 *R, c64 *B) {
+    cblas_ztrsm(CblasColMajor, CblasRight, CblasUpper, CblasNoTrans, CblasNonUnit,
+                (int)m, (int)n, &alpha, R, (int)n, B, (int)m);
+}
+
 /* ====================================================================
  * LAPACK: Linear algebra decompositions and solvers
  * ==================================================================== */
 
 /* --------------------------------------------------------------------
- * potrf: Cholesky A = L*L^H (lower triangular)
+ * potrf: Cholesky A = R^H * R (upper triangular)
  *   n: matrix dimension (A is n x n)
  * ------------------------------------------------------------------ */
 static inline int s_potrf(uint64_t n, f32 *A) {
-    return LAPACKE_spotrf(LAPACK_COL_MAJOR, 'L', (int)n, A, (int)n);
+    return LAPACKE_spotrf(LAPACK_COL_MAJOR, 'U', (int)n, A, (int)n);
 }
 
 static inline int d_potrf(uint64_t n, f64 *A) {
-    return LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'L', (int)n, A, (int)n);
+    return LAPACKE_dpotrf(LAPACK_COL_MAJOR, 'U', (int)n, A, (int)n);
 }
 
 static inline int c_potrf(uint64_t n, c32 *A) {
-    return LAPACKE_cpotrf(LAPACK_COL_MAJOR, 'L', (int)n, A, (int)n);
+    return LAPACKE_cpotrf(LAPACK_COL_MAJOR, 'U', (int)n, A, (int)n);
 }
 
 static inline int z_potrf(uint64_t n, c64 *A) {
-    return LAPACKE_zpotrf(LAPACK_COL_MAJOR, 'L', (int)n, A, (int)n);
+    return LAPACKE_zpotrf(LAPACK_COL_MAJOR, 'U', (int)n, A, (int)n);
 }
 
 /* --------------------------------------------------------------------
@@ -496,19 +524,19 @@ static inline int z_ggev(uint64_t n, c64 *A, c64 *B,
  *   n: matrix dimension
  * ------------------------------------------------------------------ */
 static inline int s_trcon(char norm, uint64_t n, const f32 *A, f32 *rcond) {
-    return LAPACKE_strcon(LAPACK_COL_MAJOR, norm, 'L', 'N', (int)n, A, (int)n, rcond);
+    return LAPACKE_strcon(LAPACK_COL_MAJOR, norm, 'U', 'N', (int)n, A, (int)n, rcond);
 }
 
 static inline int d_trcon(char norm, uint64_t n, const f64 *A, f64 *rcond) {
-    return LAPACKE_dtrcon(LAPACK_COL_MAJOR, norm, 'L', 'N', (int)n, A, (int)n, rcond);
+    return LAPACKE_dtrcon(LAPACK_COL_MAJOR, norm, 'U', 'N', (int)n, A, (int)n, rcond);
 }
 
 static inline int c_trcon(char norm, uint64_t n, const c32 *A, f32 *rcond) {
-    return LAPACKE_ctrcon(LAPACK_COL_MAJOR, norm, 'L', 'N', (int)n, A, (int)n, rcond);
+    return LAPACKE_ctrcon(LAPACK_COL_MAJOR, norm, 'U', 'N', (int)n, A, (int)n, rcond);
 }
 
 static inline int z_trcon(char norm, uint64_t n, const c64 *A, f64 *rcond) {
-    return LAPACKE_ztrcon(LAPACK_COL_MAJOR, norm, 'L', 'N', (int)n, A, (int)n, rcond);
+    return LAPACKE_ztrcon(LAPACK_COL_MAJOR, norm, 'U', 'N', (int)n, A, (int)n, rcond);
 }
 
 /* ====================================================================

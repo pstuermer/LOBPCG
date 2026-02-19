@@ -1,0 +1,273 @@
+# LOBPCG Implementation TODO
+
+## Phase 1: Foundation
+
+### Header Fixes
+- [x] `types.h:14`: Fix `complex` to `float complex`
+- [x] `lobpcg.h:2`: Fix typo `LOPBCG_H` to `LOBPCG_H`
+- [x] `lobpcg.h`: Fix all `#undef` without identifier (lines 50, 118, 149, 183, 213, 243)
+- [x] `lobpcg.h:95`: Move `#endif` to end of file
+- [x] `lobpcg.h:179`: Fix `rtype` to `ctype` for Cp parameter
+- [x] `lobpcg.h:192`: Fix macro args mismatch (uses `sizeSub, mult` but params are `nx, nconv, ndrop`)
+- [x] `lobpcg.h:231`: Fix typo `uin64_t` to `uint64_t`
+- [x] `lobpcg.h:234-235`: Add missing comma after `eps_drop`
+
+**Verify:** Headers compile without warnings: `gcc -c -Wall -std=c11 lobpcg.h` ✓ PASSED
+
+### Build System
+- [x] Create `Makefile` with MKL/OpenBLAS/BLIS backend support
+- [x] Create `examples/Makefile`
+- [ ] (Deferred) CMake build system
+
+**Verify:** `make tests && make run-tests`
+
+### BLAS Wrappers
+- [x] Create `include/lobpcg/blas_wrapper.h`
+- [x] Implement GEMM wrappers (s, d, c, z) - variants: NN, NT/NH, TN/HN
+- [x] Implement NRM2 wrappers
+- [x] Implement DOT (real) / DOTC (complex) wrappers
+- [x] Implement AXPY, SCAL, COPY wrappers
+- [x] Implement SYRK (real) / HERK (complex) for Gram matrices
+- [x] Implement POTRF (Cholesky) — upper triangular R^H*R
+- [x] Implement TRSM (triangular solve) - LLN, LLT/LLH, and RUN (right-upper-notrans) variants
+- [x] Implement SYEV (real) / HEEV (complex) eigensolve
+- [x] Implement GEEV (general eigensolve)
+- [x] Implement GGEV (generalized eigensolve for indefinite)
+- [x] Implement TRCON (triangular condition number)
+- [x] Add type-generic macros: `nrm2`, `axpy`, `scal`, `copy`, `dot`, `gram`, `potrf`, `eig`
+- [ ] ~~Implement GEMV wrappers~~ (not needed - all matvecs via LinearOperator)
+
+**Verify:** `test_blas.c` passes for all types
+
+---
+
+## Phase 2: Orthogonalization
+
+### SVQB (Standard) - for lobpcg, klobpcg
+- [x] Create `src/ortho/svqb_impl.inc`
+- [x] Implement Gram matrix computation: `G = U^H * B * U`
+- [x] Implement diagonal scaling
+- [x] Implement eigendecomposition of scaled Gram matrix
+- [x] Implement column transformation
+- [x] Create instantiation files `svqb_{s,d,c,z}.c`
+- [x] Create `tests/test_svqb.c`
+- [ ] (Deferred) Implement drop='y' mode (randomize weak columns)
+
+**Verify:** `test_svqb.c` - `||U^H * B * U - I||_F < 1e-14` (double) ✓ PASSED
+**Reference:** `lobpcg.c:598-751` (zsvqb)
+
+---
+
+### ortho_randomize - for lobpcg, klobpcg
+- [x] Create `src/ortho/ortho_randomize_impl.inc`
+- [x] Implement B-orthogonalization of U against V (positive definite)
+- [x] Iterative projection: `U = U - V*(V^H*B*U)`
+- [x] Inner loop calling svqb for orthonormalization
+- [x] Convergence checking for ||V^H*B*U||_F
+- [x] Create instantiation files `ortho_randomize_{s,d,c,z}.c`
+- [x] Add declarations to `lobpcg.h`
+- [x] Create `tests/test_ortho_randomize.c`
+
+**Verify:** `||V^H*B*U||_F < 1e-14` and `||U^H*B*U - I||_F < 1e-14`
+**Reference:** `lobpcg.c:752-860` (zortho_randomize)
+**Note:** Previously called "ortho_drop" in TODO - renamed for consistency with reference
+
+---
+
+### svqb_mat - for ilobpcg
+- [x] Create `src/ortho/svqb_mat_impl.inc`
+- [x] Implement matrix-based SVQB: `G = U^H * mat * U`
+- [x] Takes explicit matrix instead of LinearOperator
+- [x] Diagonal scaling and eigendecomposition
+- [x] Reuse scaling/eigensolve logic from svqb
+- [x] Create instantiation files `svqb_mat_{s,d,c,z}.c`
+- [x] Add declarations to `lobpcg.h`
+- [x] Create `tests/test_svqb_mat.c`
+
+**Verify:** `||U^H*mat*U - I||_F < tol` for indefinite mat ✓ PASSED
+**Reference:** `ilobpcg.c:73-126` (zsvqb_mat)
+**Priority:** Implement before ortho_randomized_mat (dependency)
+
+---
+
+### ortho_randomized_mat - for ilobpcg
+- [x] Create `src/ortho/ortho_randomized_mat_impl.inc`
+- [x] Implement matrix-based orthogonalization against V
+- [x] Uses svqb_mat internally (not svqb)
+- [x] Double projection to handle indefinite metric
+- [x] Create instantiation files `ortho_randomized_mat_{s,d,c,z}.c`
+- [x] Add declarations to `lobpcg.h`
+- [x] Create `tests/test_ortho_randomized_mat.c`
+
+**Verify:** `||V^H*mat*U||_F < tol` ✓ PASSED
+**Reference:** `ilobpcg.c:128-183` (ortho_randomized_mat)
+**Note:** Was MISSING from original TODO
+
+---
+
+### ortho_indefinite - for ilobpcg soft-locking
+- [x] Create `src/ortho/ortho_indefinite_impl.inc`
+- [x] Implement B-orthogonalization with signature tracking
+- [x] Signature-weighted projection: `U = U - V*sig*(V^H*B*U)`
+- [x] Handle positive/negative signature separately
+- [x] Create instantiation files `ortho_indefinite_{s,d,c,z}.c`
+- [x] Add declaration to `lobpcg.h`
+- [x] Create `tests/test_ortho_indefinite.c`
+
+**Verify:** `test_ortho_indefinite.c` ✓ PASSED
+**Reference:** `ilobpcg.c:185-350` (zortho_randomize_indefinite)
+
+---
+
+## Phase 3: Rayleigh-Ritz
+
+### Standard Rayleigh-Ritz
+- [x] Create `src/rayleigh/rayleigh_ritz_impl.inc`
+- [x] Build `G_A = S^H * A * S`
+- [x] Build `G_B = S^H * B * S`
+- [x] Cholesky factorization of G_B
+- [x] Transform to standard eigenvalue problem
+- [x] Eigensolve
+- [x] Back-transform eigenvectors
+- [x] Switch to upper Cholesky (R^H*R) matching herk/syrk upper-triangle output
+- [x] Fix trsm bug: use right-side trsm_run for D*inv(R) instead of left-side trsm_llh
+- [x] Remove unnecessary fill-lower loops (herk→potrf→eig all use upper triangle)
+- [x] Change eigVal parameter from CTYPE* to RTYPE* (eigenvalues are always real)
+
+**Verify:** `test_rayleigh_ritz.c` - eigenvalues of diagonal matrix are correct ✓ PASSED
+
+### Modified Rayleigh-Ritz
+- [x] Create `src/rayleigh/rayleigh_ritz_modified_impl.inc`
+- [x] Handle search space `S = [X_active | P | W]`
+- [x] Extract Cx coefficients for X update
+- [x] Extract Cp coefficients for P update
+- [x] Switch to upper Cholesky + trsm_run (same fixes as standard RR)
+
+**Verify:** Reconstruction test - `X_new = S * Cx` gives correct result ✓ PASSED
+
+### Indefinite Rayleigh-Ritz
+- [x] Create `src/rayleigh/indefinite_rr_impl.inc`
+- [x] Use GGEV for generalized problem
+- [x] Track signature (+1/-1) of each eigenpair
+- [x] Sort: positive ascending, negative descending
+- [x] Implement `bubble_sort_sig()` - sort by signature
+
+**Verify:** Test on indefinite matrix with known eigenvalues ✓ PASSED
+
+### K-based Rayleigh-Ritz (for klobpcg)
+- [x] K-based RR aliased to standard RR in `lobpcg.h` (algorithmically identical)
+
+**Verify:** Uses same code as standard RR ✓
+
+---
+
+## Phase 4: Residual & Main Loop
+
+### Memory Management
+- [x] Create `include/lobpcg/memory.h` with aligned allocation utilities
+  - `xmalloc(size)` - 64-byte aligned malloc
+  - `xcalloc(num, size)` - 64-byte aligned calloc with overflow check
+  - `safe_free(void**)` - properly nullifying free (fixes reference bug)
+- [x] Remove memory functions from `linop.h` (lines 25-39)
+- [ ] Create `src/core/lobpcg_alloc.inc`
+- [ ] Implement `lobpcg_alloc()` - allocate lobpcg_t struct
+- [ ] Implement `lobpcg_free()` - free all workspace
+- [ ] Implement `lobpcg_setup()` - init params, allocate X,W,P,S,Cx,Cp
+- [ ] Support optional `cache_products` flag for AX,AW,AP
+- [ ] (Future) Portability: Add aligned_alloc fallbacks
+  - posix_memalign (POSIX systems)
+  - _aligned_malloc + _aligned_free (MSVC)
+  - CMake detection logic for available functions
+- [ ] (Future) Custom debug mode for allocation tracking
+  - Rationale: valgrind/ASan better for safety, but custom tracking useful for:
+    * LOBPCG-specific context (e.g., "X matrix: 1.2GB")
+    * Live memory statistics during execution
+    * Zero overhead when disabled (vs valgrind 10-50x, ASan 2x)
+  - Implementation: linked list registry, track ptr/size/file/line
+  - API: xmalloc_debug, xcalloc_debug, safe_free_debug, memory_report()
+
+**Verify:** No memory leaks with valgrind
+
+### Initialization & Support
+- [x] Implement `reset_eigenvectors()` - fill X with Gaussian random
+- [x] Implement `setup_S()` - assemble S = [X,W] or [X,P,W]
+- [x] Implement `project_back()` - X = S*Cx, P = S*Cp
+- [x] Implement `estimate_norm()` - power iteration for ||A||
+
+### Residual Computation
+- [x] Create `src/residual/residual_impl.inc`
+- [x] Implement `R = A*X - B*X*diag(lambda)`
+- [x] Implement relative norm computation: ||R_i|| / (λ_i * ||A||)
+
+**Verify:** `test_residual.c` - residual of exact eigenvector is zero ✓ PASSED
+
+### Preconditioner
+- [x] Implement `apply_precond()` - call preconditioner LinearOperator
+- [x] Handle NULL preconditioner (no-op)
+
+### LOBPCG Main Loop
+- [x] Create `src/core/lobpcg_impl.inc`
+- [x] Implement initialization (random X, initial Rayleigh-Ritz)
+- [x] Implement main iteration loop
+- [ ] Implement soft-locking (skip converged columns)
+- [x] Implement convergence checking
+- [ ] Support `cache_products` option for implicit product update
+- [x] Create instantiation files
+
+**Verify:** `test_lobpcg.c` - 1D Laplacian eigenvalues match `k^2 * pi^2 / L^2` ✓ PASSED
+
+### K-based LOBPCG (klobpcg)
+- [ ] Create `src/core/klobpcg_impl.inc`
+- [ ] Simpler variant using krayleigh_ritz (no B operator)
+- [ ] Create instantiation files
+
+**Verify:** `test_klobpcg.c` - K-matrix eigenvalue problem
+
+### Indefinite LOBPCG (ilobpcg)
+- [x] Create `src/core/ilobpcg_impl.inc`
+- [x] Use indefinite Rayleigh-Ritz with GGEV
+- [x] Implement signature-aware convergence
+- [x] Handle orthogonalization in indefinite metric
+- [x] Use ortho_indefinite for B-orthogonalization
+- [x] Create instantiation files
+
+**Verify:** `test_ilobpcg.c` - diagonal indefinite test problem
+
+---
+
+## Phase 5: Physics Layer (Separate Library)
+
+### BdG Operators
+- [ ] Create `physics/CMakeLists.txt`
+- [ ] Create `physics/include/lobpcg_bdg/bdg.h`
+- [ ] Implement matmulK (kinetic + trap + interactions)
+- [ ] Implement matmulM (kinetic + 3*interactions + dipolar)
+- [ ] Implement preconditioner
+
+**Verify:** Matrix-vector products match reference `~/LREP_post`
+
+---
+
+## Phase 6: Documentation & Examples
+
+- [x] Create CLAUDE.md
+- [x] Create `examples/Makefile`
+- [ ] Create `examples/simple_laplacian.c`
+- [ ] Create `examples/custom_operator.c`
+- [ ] Add API documentation in headers
+
+---
+
+## Verification Summary
+
+| Component | Test | Tolerance (double) | Tolerance (float) | Status |
+|-----------|------|-------------------|-------------------|--------|
+| BLAS wrappers | GEMM correctness | 1e-14 | 1e-6 | ✓ |
+| SVQB | `\|\|U^H*B*U - I\|\|_F` | 1e-14 | 1e-6 | ✓ |
+| ortho_randomize | `\|\|V^H*B*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
+| svqb_mat | `\|\|U^H*mat*U - I\|\|_F` | 1e-14 | 1e-6 | ✓ |
+| ortho_randomized_mat | `\|\|V^H*mat*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
+| ortho_indefinite | ortho & norm | 1e-14 | 1e-6 | ✓ |
+| Rayleigh-Ritz | Eigenvalue error | 1e-12 | 1e-5 | - |
+| Residual | Exact eigenvector | 1e-14 | 1e-6 | - |
+| LOBPCG | Laplacian eigenvalues | 1e-4 | 1e-4 | - |

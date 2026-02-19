@@ -179,13 +179,13 @@ TEST(d_trsm_lln) {
  * ==================================================================== */
 
 TEST(d_potrf) {
-    /* Cholesky of A = [4 2; 2 5] -> L = [2 0; 1 2] */
+    /* Cholesky of A = [4 2; 2 5] -> R^H*R, R = [2 1; 0 2] (upper triangle) */
     f64 A[] = {4.0, 2.0, 2.0, 5.0};
     int info = d_potrf(2, A);
     ASSERT(info == 0);
-    ASSERT_NEAR(A[0], 2.0, TOL_F64);
-    ASSERT_NEAR(A[1], 1.0, TOL_F64);
-    ASSERT_NEAR(A[3], 2.0, TOL_F64);
+    ASSERT_NEAR(A[0], 2.0, TOL_F64);  /* R[0,0] */
+    ASSERT_NEAR(A[2], 1.0, TOL_F64);  /* R[0,1] */
+    ASSERT_NEAR(A[3], 2.0, TOL_F64);  /* R[1,1] */
 }
 
 TEST(d_syev) {

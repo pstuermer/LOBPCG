@@ -152,7 +152,7 @@ TYPE_LIST(DECLARE_RESIDUAL_NORM)
                               const uint64_t sizeSub,      \
                               ctype *restrict S,           \
                               ctype *restrict Cx,          \
-                              ctype *restrict eigVal,      \
+                              rtype *restrict eigVal,      \
                               ctype *restrict wrk1,        \
                               ctype *restrict wrk2,        \
                               ctype *restrict wrk3,        \
