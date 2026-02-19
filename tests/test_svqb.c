@@ -55,13 +55,6 @@ static f64 ortho_error_d(uint64_t m, uint64_t n, const f64 *U) {
     f64 *G = xcalloc(n * n, sizeof(f64));
     d_syrk(m, n, 1.0, U, 0.0, G);
 
-    /*    for (uint64_t j = 0; j < n; j++) {
-      for (uint64_t i = 0; i < n; i++) {
-	printf("%.3e\t",G[i+j*n]);
-      }
-      printf("\n");
-      }*/
-    
     /* Fill lower and subtract I */
     for (uint64_t j = 0; j < n; j++) {
         for (uint64_t i = j; i < n; i++) {
@@ -69,13 +62,6 @@ static f64 ortho_error_d(uint64_t m, uint64_t n, const f64 *U) {
             else G[i + j*n] = G[j + i*n];
         }
     }
-
-    /*    for (uint64_t j = 0; j < n; j++) {
-      for (uint64_t i = 0; i < n; i++) {
-	printf("%.3e\t",G[i+j*n]);
-      }
-      printf("\n");
-      }*/
 
     f64 err = d_nrm2(n*n, G);
     safe_free((void**)&G);
@@ -94,12 +80,22 @@ static f64 ortho_error_z(uint64_t m, uint64_t n, const c64 *U) {
         }
     }
     f64 err = z_nrm2(n*n, G);
+    safe_free((void**)&G);
+    return err;
+}
+
+/* Compute ||U^H*U - I||_F for single */
+static f32 ortho_error_s(uint64_t m, uint64_t n, const f32 *U) {
+    f32 *G = xcalloc(n * n, sizeof(f32));
+    s_syrk(m, n, 1.0f, U, 0.0f, G);
+    /* Fill lower and subtract I */
     for (uint64_t j = 0; j < n; j++) {
-      for (uint64_t i = 0; i < n; i++) {
-	printf("%.3e %.3e\t", creal(G[i+j*n]), cimag(G[i+j*n]));
-      }
-      printf("\n");
+        for (uint64_t i = j; i < n; i++) {
+            if (i == j) G[i + j*n] -= 1.0f;
+            else G[i + j*n] = G[j + i*n];
+        }
     }
+    f32 err = s_nrm2(n*n, G);
     safe_free((void**)&G);
     return err;
 }
@@ -118,11 +114,14 @@ TEST(d_svqb_identity) {
 
     fill_random_d(m * n, U);
 
+    f64 err_before = ortho_error_d(m, n, U);
+    ASSERT(err_before > 1.0);
+
     uint64_t ncols = d_svqb(m, n, 1e-14, 'n', U, wrk1, wrk2, wrk3, NULL);
     ASSERT(ncols == n);
 
     f64 err = ortho_error_d(m, n, U);
-    printf("err = %.2e, tol = %.2e ", err, TOL_F64 * n);
+    printf("before = %.2e, after = %.2e, tol = %.2e ", err_before, err, TOL_F64 * n);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -138,9 +137,13 @@ TEST(d_svqb_larger) {
 
     fill_random_d(m * n, U);
 
+    f64 err_before = ortho_error_d(m, n, U);
+    ASSERT(err_before > 1.0);
+
     d_svqb(m, n, 1e-14, 'n', U, wrk1, wrk2, wrk3, NULL);
 
     f64 err = ortho_error_d(m, n, U);
+    printf("before = %.2e, after = %.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -160,10 +163,14 @@ TEST(z_svqb_identity) {
 
     fill_random_z(m * n, U);
 
+    f64 err_before = ortho_error_z(m, n, U);
+    ASSERT(err_before > 1.0);
+
     uint64_t ncols = z_svqb(m, n, 1e-14, 'n', U, wrk1, wrk2, wrk3, NULL);
     ASSERT(ncols == n);
 
     f64 err = ortho_error_z(m, n, U);
+    printf("before = %.2e, after = %.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -179,9 +186,13 @@ TEST(z_svqb_larger) {
 
     fill_random_z(m * n, U);
 
+    f64 err_before = ortho_error_z(m, n, U);
+    ASSERT(err_before > 1.0);
+
     z_svqb(m, n, 1e-14, 'n', U, wrk1, wrk2, wrk3, NULL);
 
     f64 err = ortho_error_z(m, n, U);
+    printf("before = %.2e, after = %.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -201,16 +212,16 @@ TEST(s_svqb_identity) {
     for (uint64_t i = 0; i < m*n; i++)
         U[i] = (f32)rand() / RAND_MAX - 0.5f;
 
+    f32 err_before = ortho_error_s(m, n, U);
+    ASSERT(err_before > 1.0f);
+
     s_svqb(m, n, 1e-6f, 'n', U, wrk1, wrk2, wrk3, NULL);
 
-    /* Compute error */
-    f32 *G = xcalloc(n * n, sizeof(f32));
-    s_syrk(m, n, 1.0f, U, 0.0f, G);
-    for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0f;
-    f32 err = s_nrm2(n*n, G);
+    f32 err = ortho_error_s(m, n, U);
+    printf("before = %.2e, after = %.2e ", (double)err_before, (double)err);
     ASSERT(err < TOL_F32 * n);
 
-    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3); safe_free((void**)&G);
+    safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 /* ====================================================================

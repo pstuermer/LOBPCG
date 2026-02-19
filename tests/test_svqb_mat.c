@@ -100,6 +100,10 @@ int test_svqb_mat_d(void) {
     for (uint64_t i = 0; i < m * n; i++)
         U[i] = (f64)rand() / RAND_MAX - 0.5;
 
+    f64 err_before = ortho_error_mat_d(m, n, U, mat);
+    printf("  pre-svqb ||U^H*mat*U - I_sig||_F = %.3e (should be > 1)\n", err_before);
+    if (err_before <= 1.0) { printf("  FAIL: input already orthogonal\n"); return 0; }
+
     uint64_t ncols = d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
     printf("  Returned %lu columns (expected %lu)\n",
            (unsigned long)ncols, (unsigned long)n);
@@ -126,6 +130,10 @@ int test_svqb_mat_z(void) {
 
     for (uint64_t i = 0; i < m * n; i++)
         U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+
+    f64 err_before = ortho_error_mat_z(m, n, U, mat);
+    printf("  pre-svqb ||U^H*mat*U - I_sig||_F = %.3e (should be > 1)\n", err_before);
+    if (err_before <= 1.0) { printf("  FAIL: input already orthogonal\n"); return 0; }
 
     uint64_t ncols = z_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
     printf("  Returned %lu columns (expected %lu)\n",
@@ -155,10 +163,17 @@ int test_svqb_mat_identity_d(void) {
     for (uint64_t i = 0; i < m * n; i++)
         U[i] = (f64)rand() / RAND_MAX - 0.5;
 
+    /* Pre-svqb check: random input should NOT be orthogonal */
+    f64 *G = xcalloc(n * n, sizeof(f64));
+    d_gemm_tn(n, n, m, 1.0, U, U, 0.0, G);
+    for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0;
+    f64 err_before = d_nrm2(n * n, G);
+    printf("  pre-svqb ||U^T*U - I||_F = %.3e (should be > 1)\n", err_before);
+    if (err_before <= 1.0) { safe_free((void**)&G); printf("  FAIL: input already orthogonal\n"); return 0; }
+
     d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
 
     /* Check standard orthonormality: ||U^T*U - I||_F */
-    f64 *G = xcalloc(n * n, sizeof(f64));
     d_gemm_tn(n, n, m, 1.0, U, U, 0.0, G);
     for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0;
     f64 err = d_nrm2(n * n, G);
