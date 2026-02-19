@@ -54,11 +54,10 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
 
     /* Compute ||B*V||_F for relative tolerance */
     RTYPE BV_norm = 0;
-    if (!B) BV_norm = FN(nrm2)(m * n_v, V);
-    if (B) {
-        /* BV = B*V in wrk1 */
-        for (uint64_t j = 0; j < n_v; j++)
-            B->matvec(B, &V[j*m], &wrk1[j*m]);
+    if (NULL == B) {
+        BV_norm = FN(nrm2)(m * n_v, V);
+    } else {
+        FN(apply_block_op)(B, V, wrk1, m, n_v);
         BV_norm = FN(nrm2)(m * n_v, wrk1);
     }
 
@@ -67,25 +66,7 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
     /* Outer loop: orthogonalization iterations */
     for (uint64_t outer = 0; outer < 3; outer++) {
         /* Compute coef = V^H * B * U  (n_v x n_u) stored in wrk2 */
-        if (NULL == B) {
-            /* coef = V^H * U */
-#ifdef CTYPE_IS_COMPLEX
-            FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, U, (CTYPE)0, wrk2);
-#else
-            FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, U, (CTYPE)0, wrk2);
-#endif
-        } else {
-            /* BU = B*U in wrk1 */
-            for (uint64_t j = 0; j < n_u; j++) {
-                B->matvec(B, &U[j*m], &wrk1[j*m]);
-            }
-            /* coef = V^H * BU */
-#ifdef CTYPE_IS_COMPLEX
-            FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk2);
-#else
-            FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk2);
-#endif
-        }
+        FN(gram_cross)(V, n_v, U, n_u, m, B, wrk2, n_v, wrk1);
 
         /* U = U - V * coef */
         FN(gemm_nn)(m, n_u, n_v, (CTYPE)(-1), V, wrk2, (CTYPE)1, U);
@@ -102,29 +83,14 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
             }
 
             /* Check ||U^H * B * U - I||_F < eps_ortho */
+            U_norm = FN(nrm2)(m * n_u, U);
             if (NULL == B) {
-                U_norm = FN(nrm2)(m * n_u, U);
                 BU_norm = U_norm;
-                /* G = U^H * U */
-#ifdef CTYPE_IS_COMPLEX
-                FN(gemm_hn)(n_u, n_u, m, (CTYPE)1, U, U, (CTYPE)0, wrk2);
-#else
-                FN(gemm_tn)(n_u, n_u, m, (CTYPE)1, U, U, (CTYPE)0, wrk2);
-#endif
             } else {
-                /* BU = B*U */
-                for (uint64_t j = 0; j < n_u; j++) {
-                    B->matvec(B, &U[j*m], &wrk1[j*m]);
-                }
-                U_norm = FN(nrm2)(m * n_u, U);
+                FN(apply_block_op)(B, U, wrk1, m, n_u);
                 BU_norm = FN(nrm2)(m * n_u, wrk1);
-                /* G = U^H * BU */
-#ifdef CTYPE_IS_COMPLEX
-                FN(gemm_hn)(n_u, n_u, m, (CTYPE)1, U, wrk1, (CTYPE)0, wrk2);
-#else
-                FN(gemm_tn)(n_u, n_u, m, (CTYPE)1, U, wrk1, (CTYPE)0, wrk2);
-#endif
             }
+            FN(gram_self)(U, m, n_u, B, wrk2, n_u, wrk1);
 
             /* Subtract identity: G = G - I */
             for (uint64_t i = 0; i < n_u; i++) {
@@ -138,22 +104,7 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
         }
 
         /* Check ||V^H * B * U||_F < eps_ortho */
-        if (NULL == B) {
-            /* coef = V^H * U (already computed, in wrk2) */
-#ifdef CTYPE_IS_COMPLEX
-            FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, U, (CTYPE)0, wrk2);
-#else
-            FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, U, (CTYPE)0, wrk2);
-#endif
-        } else {
-            /* BU already in wrk1 from inner loop */
-            /* coef = V^H * BU */
-#ifdef CTYPE_IS_COMPLEX
-            FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk2);
-#else
-            FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk2);
-#endif
-        }
+        FN(gram_cross)(V, n_v, U, n_u, m, B, wrk2, n_v, wrk1);
 
         RTYPE VU_norm = FN(nrm2)(n_v * n_u, wrk2);
         U_norm = FN(nrm2)(m * n_u, U);

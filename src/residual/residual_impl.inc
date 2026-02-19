@@ -42,16 +42,14 @@ void FN(get_residual)(const uint64_t size, const uint64_t sizeSub,
                       LINOP *A, LINOP *B) {
 
   /* 1. Compute R = A*X or copy from AX */
-  if (!AX) {
-    for (uint64_t j = 0; j < sizeSub; j++)
-      A->matvec(A, &X[j*size], &R[j*size]);
+  if (NULL == AX) {
+    FN(apply_block_op)(A, X, R, size, sizeSub);
   } else memcpy(R, AX, size * sizeSub * sizeof(CTYPE));
 
   /* 2. Compute R = R - B*X*eigVal */
   if (B) {
     /* wrk = B*X */
-    for (uint64_t j = 0; j < sizeSub; j++)
-      B->matvec(B, &X[j*size], &wrk[j*size]);
+    FN(apply_block_op)(B, X, wrk, size, sizeSub);
     /* R[:,j] = R[:,j] - eigVal[j] * wrk[:,j] */
     for (uint64_t j = 0; j < sizeSub; j++) {
       const CTYPE lambda = eigVal[j];
@@ -81,10 +79,12 @@ void FN(get_residual)(const uint64_t size, const uint64_t sizeSub,
  *
  * Uses wrk1, wrk2, wrk3 as workspace
  */
-void FN(get_residual_norm)(const uint64_t size, const uint64_t sizeSub,
-                           const uint64_t nev, CTYPE *restrict W,
-                           RTYPE *restrict eigVals, RTYPE *restrict resNorm,
-                           CTYPE *restrict wrk1, CTYPE *restrict wrk2, CTYPE *restrict wrk3,
+
+// TODO: remove sizeSub
+void FN(get_residual_norm)(const uint64_t size, const uint64_t nev,
+			   CTYPE *restrict W, RTYPE *restrict eigVals,
+			   RTYPE *restrict resNorm, CTYPE *restrict wrk1,
+			   CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                            const RTYPE ANorm, const RTYPE BNorm, LINOP *B) {
 
   (void)wrk2;  /* Unused for now */

@@ -110,7 +110,6 @@ TYPE_LIST(DECLARE_GET_RESIDUAL)
  * ------------------------------------------------------------------ */
 #define DECLARE_RESIDUAL_NORM(prefix, ctype, rtype, linop) \
   void prefix##_get_residual_norm(const uint64_t size,     \
-                                  const uint64_t sizeSub,  \
                                   const uint64_t nev,      \
                                   ctype *restrict W,       \
                                   rtype *restrict eigVals, \
@@ -125,14 +124,14 @@ TYPE_LIST(DECLARE_GET_RESIDUAL)
 TYPE_LIST(DECLARE_RESIDUAL_NORM)
 #undef DECLARE_RESIDUAL_NORM
 
-#define get_residual_norm(size, sizeSub, nev, W, eigVals, resNorm, \
+#define get_residual_norm(size, nev, W, eigVals, resNorm, \
                           wrk1, wrk2, wrk3, ANorm, BNorm, B)       \
   _Generic((W),                         \
     f32 *: s_get_residual_norm,         \
     f64 *: d_get_residual_norm,         \
     c32 *: c_get_residual_norm,         \
     c64 *: z_get_residual_norm          \
-  )(size, sizeSub, nev, W, eigVals, resNorm, wrk1, wrk2, wrk3, ANorm, BNorm, B)
+  )(size, nev, W, eigVals, resNorm, wrk1, wrk2, wrk3, ANorm, BNorm, B)
 
 /* -------------------------------------------------------------------
  * Function declarations: rayleigh_ritz
@@ -421,6 +420,60 @@ TYPE_LIST(DECLARE_INDEF_RR_MOD)
   )(size, nx, mult, nconv, ndrop, S, wrk1, wrk2, wrk3, wrk4, Cx, Cp, eigVal, sig, A, B)
 
 /* --------------------------------------------------------------------
+ * Function declarations: Gram matrix helpers
+ * ------------------------------------------------------------------ */
+#define DECLARE_APPLY_BLOCK_OP(prefix, ctype, rtype, linop) \
+  void prefix##_apply_block_op(const linop *Op, ctype *restrict X, \
+                               ctype *restrict Y, const uint64_t n, \
+                               const uint64_t k);
+
+TYPE_LIST(DECLARE_APPLY_BLOCK_OP)
+#undef DECLARE_APPLY_BLOCK_OP
+
+#define apply_block_op(Op, X, Y, n, k) \
+  _Generic((X),                        \
+    f32 *: s_apply_block_op, \
+    f64 *: d_apply_block_op, \
+    c32 *: c_apply_block_op, \
+    c64 *: z_apply_block_op  \
+  )(Op, X, Y, n, k)
+
+#define DECLARE_GRAM_SELF(prefix, ctype, rtype, linop) \
+  void prefix##_gram_self(ctype *restrict U, const uint64_t n,       \
+                          const uint64_t k, const linop *B,           \
+                          ctype *restrict G, const uint64_t ldg,      \
+                          ctype *restrict wrk);
+
+TYPE_LIST(DECLARE_GRAM_SELF)
+#undef DECLARE_GRAM_SELF
+
+#define gram_self(U, n, k, B, G, ldg, wrk) \
+  _Generic((U),                            \
+    f32 *: s_gram_self, \
+    f64 *: d_gram_self, \
+    c32 *: c_gram_self, \
+    c64 *: z_gram_self  \
+  )(U, n, k, B, G, ldg, wrk)
+
+#define DECLARE_GRAM_CROSS(prefix, ctype, rtype, linop) \
+  void prefix##_gram_cross(ctype *restrict V, const uint64_t nv,      \
+                           ctype *restrict U, const uint64_t nu,      \
+                           const uint64_t n, const linop *B,           \
+                           ctype *restrict G, const uint64_t ldg,      \
+                           ctype *restrict wrk);
+
+TYPE_LIST(DECLARE_GRAM_CROSS)
+#undef DECLARE_GRAM_CROSS
+
+#define gram_cross(V, nv, U, nu, n, B, G, ldg, wrk) \
+  _Generic((V),                                      \
+    f32 *: s_gram_cross, \
+    f64 *: d_gram_cross, \
+    c32 *: c_gram_cross, \
+    c64 *: z_gram_cross  \
+  )(V, nv, U, nu, n, B, G, ldg, wrk)
+
+/* --------------------------------------------------------------------
  * K-based Rayleigh-Ritz: aliases to standard RR
  * (algorithmically identical — both use Cholesky + HEEV)
  * ------------------------------------------------------------------ */
@@ -446,29 +499,31 @@ TYPE_LIST(DECLARE_INDEF_RR_MOD)
  * lobpcg_alloc / lobpcg_free
  * Allocate and free LOBPCG state structures
  * ------------------------------------------------------------------ */
-#define DEFINE_LOBPCG_ALLOC(prefix, ctype, rtype, linop)                    \
-  static inline prefix##_lobpcg_t *prefix##_lobpcg_alloc(                   \
-      uint64_t n, uint64_t nev) {                                           \
-    prefix##_lobpcg_t *alg = xcalloc(1, sizeof(prefix##_lobpcg_t));         \
-    alg->size = n;                                                          \
-    alg->nev = nev;                                                         \
-    alg->sizeSub = nev;                                                     \
-    alg->S       = xcalloc(n * 3 * nev, sizeof(ctype));                     \
-    alg->Cx      = xcalloc(3 * nev * 3 * nev, sizeof(ctype));               \
-    alg->Cp      = xcalloc(3 * nev * 2 * nev, sizeof(ctype));               \
-    alg->eigVals = xcalloc(nev, sizeof(rtype));                             \
-    alg->resNorm = xcalloc(nev, sizeof(rtype));                             \
-    alg->wrk1    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
-    alg->wrk2    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
-    alg->wrk3    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
-    alg->wrk4    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
-    return alg;                                                             \
+#define DEFINE_LOBPCG_ALLOC(prefix, ctype, rtype, linop)		\
+  static inline prefix##_lobpcg_t *prefix##_lobpcg_alloc(		\
+			  uint64_t n, uint64_t nev, uint64_t sizeSub) { \
+    prefix##_lobpcg_t *alg = xcalloc(1, sizeof(prefix##_lobpcg_t));	\
+    alg->size = n;							\
+    alg->sizeSub = sizeSub;						\
+    alg->nev = nev;							\
+    alg->sizeSub = nev;							\
+    alg->S       = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
+    alg->Cx      = xcalloc(3 * sizeSub * sizeSub, sizeof(ctype));	\
+    alg->Cp      = xcalloc(3 * sizeSub * sizeSub, sizeof(ctype));	\
+    alg->eigVals = xcalloc(sizeSub, sizeof(rtype));			\
+    alg->resNorm = xcalloc(sizeSub, sizeof(rtype));			\
+    alg->wrk1    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
+    alg->wrk2    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
+    alg->wrk3    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
+    alg->wrk4    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
+    return alg;								\
   }
 
 TYPE_LIST(DEFINE_LOBPCG_ALLOC)
 #undef DEFINE_LOBPCG_ALLOC
 
-#define lobpcg_alloc(n, nev, prefix) prefix##_lobpcg_alloc(n, nev)
+#define lobpcg_alloc(n, nev, sizeSub, prefix) \
+  prefix##_lobpcg_alloc(n, nev, sizeSub)
 
 #define DEFINE_LOBPCG_FREE(prefix, ctype, rtype, linop)                     \
   static inline void prefix##_lobpcg_free(prefix##_lobpcg_t **alg) {        \
@@ -502,16 +557,16 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
  * ilobpcg_alloc
  * Allocate LOBPCG state with extra buffers for indefinite solver
  * ------------------------------------------------------------------ */
-#define DEFINE_ILOBPCG_ALLOC(prefix, ctype, rtype, linop)                   \
-  static inline prefix##_lobpcg_t *prefix##_ilobpcg_alloc(                  \
-      uint64_t n, uint64_t nev) {                                           \
-    prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev);                 \
-    /* Reallocate Cp larger for indefinite: 3*nev × 2*nev */                \
-    safe_free((void**)&alg->Cp);                                            \
-    alg->Cp        = xcalloc(3 * nev * 2 * nev, sizeof(ctype));            \
-    alg->AS        = xcalloc(n * 3 * nev, sizeof(ctype));                   \
-    alg->signature = xcalloc(3 * nev, sizeof(int8_t));                      \
-    return alg;                                                             \
+#define DEFINE_ILOBPCG_ALLOC(prefix, ctype, rtype, linop)		\
+  static inline prefix##_lobpcg_t *prefix##_ilobpcg_alloc(		\
+      		      uint64_t n, uint64_t nev, uint64_t sizeSub) {     \
+    prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev, sizeSub);	\
+    /* Reallocate Cp larger for indefinite: 3*nev × 2*nev */		\
+    safe_free((void**)&alg->Cp);					\
+    alg->Cp        = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));	\
+    alg->AS        = xcalloc(3*n*sizeSub, sizeof(ctype));		\
+    alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
+    return alg;								\
   }
 
 TYPE_LIST(DEFINE_ILOBPCG_ALLOC)

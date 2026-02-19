@@ -147,8 +147,10 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 		   alg->A, alg->B);
 
   /* Compute initial residual norms */
-  FN(get_residual_norm)(size, sizeSub, nev, W, alg->eigVals, alg->resNorm,
+  FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
 			alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
+
+  // TODO: Print residualnorm and eigenvalues
 
   /* Main iteration loop */
   alg->converged = 0;
@@ -159,9 +161,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
     /* Apply preconditioner T to W (if provided) */
     if (NULL != alg->T) {
-      for (uint64_t j = 0; j < sizeSub; j++) {
-	alg->T->matvec(alg->T, &W[j * size], &alg->wrk1[j * size]);
-      }
+      FN(apply_block_op)(alg->T, W, alg->wrk1, size, sizeSub);
       memcpy(W, alg->wrk1, size * sizeSub * sizeof(CTYPE));
     }
 
@@ -220,7 +220,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 		     alg->A, alg->B);
 
     /* Compute residual norms */
-    FN(get_residual_norm)(size, sizeSub, nev, W, alg->eigVals, alg->resNorm,
+    FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
 			  alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
 
     /* Check convergence */

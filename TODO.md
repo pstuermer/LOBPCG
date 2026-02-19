@@ -250,6 +250,22 @@
 
 ---
 
+## Refactoring
+
+### Gram matrix helpers
+- [x] Create `src/gram/gram_impl.inc` with `apply_block_op`, `gram_self`, `gram_cross`
+- [x] Create instantiation files `gram_{s,d,c,z}.c`
+- [x] Add declarations + `_Generic` macros to `lobpcg.h`
+- [x] Add `GRAM_SRC` to Makefile, link into all test targets
+- [x] Create `tests/test_gram.c` (11 tests, all pass)
+- [x] Replace Gram patterns in: svqb, ortho_drop, ortho_randomize, ortho_indefinite, rayleigh_ritz, rayleigh_ritz_modified, indefinite_rr, indefinite_rr_modified, residual, lobpcg, ilobpcg
+- [x] Fix pre-existing wrk3 buffer underallocation in test_ortho_indefinite (was `coef_size`, needs `wrk_size`)
+- [ ] (Skipped) svqb_mat, ortho_randomized_mat — only 2 files, left as-is
+
+**Verify:** All tests pass after replacements ✓
+
+---
+
 ## Phase 6: Documentation & Examples
 
 - [x] Create CLAUDE.md

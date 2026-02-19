@@ -60,21 +60,7 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
 
   /* 1. Gram matrix G = U^H*B*U in wrk1 (upper triangle) */
   memset(wrk1, 0, cols*cols*sizeof(CTYPE));
-  if (NULL == B) {
-#ifdef CTYPE_IS_COMPLEX
-    FN(herk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
-#else
-    FN(syrk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
-#endif
-  } else {
-    for (uint64_t j = 0; j < cols; j++)
-      B->matvec(B, &U[j*rows], &wrk2[j*rows]);
-#ifdef CTYPE_IS_COMPLEX
-    FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#else
-    FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#endif
-  }
+  FN(gram_self)(U, rows, cols, B, wrk1, cols, wrk2);
 
   /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
   for (uint64_t i = 0; i < cols; i++) {

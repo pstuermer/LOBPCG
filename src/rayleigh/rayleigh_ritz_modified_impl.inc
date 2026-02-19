@@ -71,9 +71,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
         *useOrtho = 1;
 
         /* Compute AS = A * S in wrk2 */
-        for (uint64_t j = 0; j < sizeSub; j++) {
-            A->matvec(A, &S[j*size], &wrk2[j*size]);
-        }
+        FN(apply_block_op)(A, S, wrk2, size, sizeSub);
 
         /* Form wrk1 = S^H * AS */
         memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
@@ -160,23 +158,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
 
     /* 1. Gram matrix G = S^H * B * S in wrk1 (upper triangle) */
     memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
-    if (NULL == B) {
-#ifdef CTYPE_IS_COMPLEX
-        FN(herk)(size, sizeSub, (RTYPE)1, S, (RTYPE)0, wrk1);
-#else
-        FN(syrk)(size, sizeSub, (RTYPE)1, S, (RTYPE)0, wrk1);
-#endif
-    } else {
-        /* BS = B*S in wrk2 */
-        for (uint64_t j = 0; j < sizeSub; j++) {
-            B->matvec(B, &S[j*size], &wrk2[j*size]);
-        }
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
-#else
-        FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
-#endif
-    }
+    FN(gram_self)(S, size, sizeSub, B, wrk1, sizeSub, wrk2);
 
     /* 2. Diagonal scaling */
     for (uint64_t i = 0; i < sizeSub; i++) {
@@ -225,9 +207,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     FN(trsm_run)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
 
     /* 7. Compute AS = A * S in wrk2 */
-    for (uint64_t j = 0; j < sizeSub; j++) {
-        A->matvec(A, &S[j*size], &wrk2[j*size]);
-    }
+    FN(apply_block_op)(A, S, wrk2, size, sizeSub);
 
     /* 8. Compute Ap = S^H * AS */
 #ifdef CTYPE_IS_COMPLEX

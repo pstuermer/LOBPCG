@@ -281,11 +281,11 @@ TEST(d_ortho_indefinite_basic) {
     /* Allocate matrices */
     f64 *V = xcalloc(m * n_v, sizeof(f64));
     f64 *U = xcalloc(m * n_u, sizeof(f64));
-    uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
-    uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
     f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
     f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
-    f64 *wrk3 = xcalloc(coef_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
 
     /* Fill V and U with random values */
     fill_random_d(m * n_v, V);
@@ -333,11 +333,11 @@ TEST(d_ortho_indefinite_no_sig) {
 
     f64 *V = xcalloc(m * n_v, sizeof(f64));
     f64 *U = xcalloc(m * n_u, sizeof(f64));
-    uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
-    uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
     f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
     f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
-    f64 *wrk3 = xcalloc(coef_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
 
     fill_random_d(m * n_v, V);
     fill_random_d(m * n_u, U);
@@ -373,11 +373,11 @@ TEST(z_ortho_indefinite_basic) {
 
     c64 *V = xcalloc(m * n_v, sizeof(c64));
     c64 *U = xcalloc(m * n_u, sizeof(c64));
-    uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
-    uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
     c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
     c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
-    c64 *wrk3 = xcalloc(coef_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
 
     fill_random_z(m * n_v, V);
     fill_random_z(m * n_u, U);
@@ -409,11 +409,11 @@ TEST(z_ortho_indefinite_larger) {
 
     c64 *V = xcalloc(m * n_v, sizeof(c64));
     c64 *U = xcalloc(m * n_u, sizeof(c64));
-    uint64_t wrk_size = m * (n_u > n_v ? n_u : n_v);
-    uint64_t coef_size = (n_v > n_u ? n_v : n_u) * (n_v > n_u ? n_v : n_u);
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
     c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
     c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
-    c64 *wrk3 = xcalloc(coef_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
 
     fill_random_z(m * n_v, V);
     fill_random_z(m * n_u, U);

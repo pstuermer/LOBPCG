@@ -106,7 +106,7 @@ int test_get_residual_norm(void) {
     f64 ANorm = 10.0;
     f64 BNorm = 1.0;
 
-    d_get_residual_norm(n, nev, nev, W, eigVals, resNorm,
+    d_get_residual_norm(n, nev, W, eigVals, resNorm,
                         wrk1, wrk2, wrk3, ANorm, BNorm, NULL);
 
     printf("  Residual norms:\n");

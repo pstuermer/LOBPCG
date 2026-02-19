@@ -25,7 +25,7 @@ SRC = $(wildcard src/*.c src/**/*.c)
 OBJ = $(patsubst %.c,%.o,$(SRC))
 
 # Tests
-TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_svqb.ex build/test_ortho_indefinite.ex \
+TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_gram.ex build/test_svqb.ex build/test_ortho_indefinite.ex \
         build/test_ortho_drop.ex build/test_ortho_randomize.ex build/test_svqb_mat.ex build/test_ortho_randomized_mat.ex \
         build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex build/test_indefinite_rr.ex \
         build/test_ilobpcg.ex
@@ -56,29 +56,34 @@ build/test_memory.ex: tests/test_memory.c
 build/linop_test.ex: linop_test.c
 	$(CC) $(CFLAGS) $(INCLUDES) $< -o $@ $(LDFLAGS)
 
-build/test_svqb.ex: tests/test_svqb.c src/ortho/svqb_s.c src/ortho/svqb_d.c src/ortho/svqb_c.c src/ortho/svqb_z.c
+GRAM_SRC = src/gram/gram_s.c src/gram/gram_d.c src/gram/gram_c.c src/gram/gram_z.c
+SVQB_SRC = src/ortho/svqb_s.c src/ortho/svqb_d.c src/ortho/svqb_c.c src/ortho/svqb_z.c
+
+build/test_gram.ex: tests/test_gram.c $(GRAM_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+build/test_svqb.ex: tests/test_svqb.c $(SVQB_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # SVQB sources needed for ortho_indefinite
-SVQB_SRC = src/ortho/svqb_s.c src/ortho/svqb_d.c src/ortho/svqb_c.c src/ortho/svqb_z.c
 ORTHO_INDEF_SRC = src/ortho/ortho_indefinite_s.c src/ortho/ortho_indefinite_d.c \
                   src/ortho/ortho_indefinite_c.c src/ortho/ortho_indefinite_z.c
 
-build/test_ortho_indefinite.ex: tests/test_ortho_indefinite.c $(SVQB_SRC) $(ORTHO_INDEF_SRC)
+build/test_ortho_indefinite.ex: tests/test_ortho_indefinite.c $(SVQB_SRC) $(ORTHO_INDEF_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # ortho_drop test
 ORTHO_DROP_SRC = src/ortho/ortho_drop_s.c src/ortho/ortho_drop_d.c \
                  src/ortho/ortho_drop_c.c src/ortho/ortho_drop_z.c
 
-build/test_ortho_drop.ex: tests/test_ortho_drop.c $(SVQB_SRC) $(ORTHO_DROP_SRC)
+build/test_ortho_drop.ex: tests/test_ortho_drop.c $(SVQB_SRC) $(ORTHO_DROP_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # ortho_randomize test
 ORTHO_RAND_SRC = src/ortho/ortho_randomize_s.c src/ortho/ortho_randomize_d.c \
                  src/ortho/ortho_randomize_c.c src/ortho/ortho_randomize_z.c
 
-build/test_ortho_randomize.ex: tests/test_ortho_randomize.c $(SVQB_SRC) $(ORTHO_RAND_SRC)
+build/test_ortho_randomize.ex: tests/test_ortho_randomize.c $(SVQB_SRC) $(ORTHO_RAND_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # svqb_mat test
@@ -106,18 +111,18 @@ INDEF_RR_SRC = src/rayleigh/indefinite_rr_s.c src/rayleigh/indefinite_rr_d.c \
 INDEF_RR_MOD_SRC = src/rayleigh/indefinite_rr_modified_s.c src/rayleigh/indefinite_rr_modified_d.c \
                    src/rayleigh/indefinite_rr_modified_c.c src/rayleigh/indefinite_rr_modified_z.c
 
-build/test_rayleigh_ritz.ex: tests/test_rayleigh_ritz.c $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC)
+build/test_rayleigh_ritz.ex: tests/test_rayleigh_ritz.c $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # indefinite rayleigh_ritz test
-build/test_indefinite_rr.ex: tests/test_indefinite_rr.c $(INDEF_RR_SRC) $(INDEF_RR_MOD_SRC)
+build/test_indefinite_rr.ex: tests/test_indefinite_rr.c $(INDEF_RR_SRC) $(INDEF_RR_MOD_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # residual test
 RESIDUAL_SRC = src/residual/residual_s.c src/residual/residual_d.c \
                src/residual/residual_c.c src/residual/residual_z.c
 
-build/test_residual.ex: tests/test_residual.c $(RESIDUAL_SRC)
+build/test_residual.ex: tests/test_residual.c $(RESIDUAL_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # LOBPCG integration test
@@ -125,7 +130,7 @@ LOBPCG_CORE_SRC = src/core/lobpcg_s.c src/core/lobpcg_d.c \
                   src/core/lobpcg_c.c src/core/lobpcg_z.c
 
 build/test_lobpcg.ex: tests/test_lobpcg.c $(LOBPCG_CORE_SRC) $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC) \
-                      $(RESIDUAL_SRC) $(ORTHO_DROP_SRC) $(SVQB_SRC)
+                      $(RESIDUAL_SRC) $(ORTHO_DROP_SRC) $(SVQB_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # iLOBPCG integration test
@@ -133,7 +138,7 @@ ILOBPCG_CORE_SRC = src/core/ilobpcg_s.c src/core/ilobpcg_d.c \
                    src/core/ilobpcg_c.c src/core/ilobpcg_z.c
 
 build/test_ilobpcg.ex: tests/test_ilobpcg.c $(ILOBPCG_CORE_SRC) $(INDEF_RR_SRC) $(INDEF_RR_MOD_SRC) \
-                       $(RESIDUAL_SRC) $(ORTHO_INDEF_SRC) $(SVQB_SRC)
+                       $(RESIDUAL_SRC) $(ORTHO_INDEF_SRC) $(SVQB_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 run-tests: tests

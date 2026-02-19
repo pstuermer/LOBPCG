@@ -129,8 +129,7 @@ void FN(indefinite_rayleigh_ritz_modified)(
 #endif
 
     /* 1. GA = S^H * A * S in wrk1 */
-    for (uint64_t j = 0; j < sizeSub; j++)
-        A->matvec(A, &S[j * size], &wrk2[j * size]);
+    FN(apply_block_op)(A, S, wrk2, size, sizeSub);
 #ifdef CTYPE_IS_COMPLEX
     FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
 #else
@@ -138,8 +137,7 @@ void FN(indefinite_rayleigh_ritz_modified)(
 #endif
 
     /* 2. GB = S^H * B * S in wrk3 */
-    for (uint64_t j = 0; j < sizeSub; j++)
-        B->matvec(B, &S[j * size], &wrk2[j * size]);
+    FN(apply_block_op)(B, S, wrk2, size, sizeSub);
 #ifdef CTYPE_IS_COMPLEX
     FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk3);
 #else

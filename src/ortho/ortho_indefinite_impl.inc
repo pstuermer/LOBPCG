@@ -103,24 +103,7 @@ uint64_t FN(ortho_indefinite)(
         sig = sig_local;
 
         /* Compute sig = V^H * B * V */
-        if (NULL == B) {
-            /* B = I: sig = V^H * V */
-#ifdef CTYPE_IS_COMPLEX
-            FN(herk)(m, n_v, (RTYPE)1, V, (RTYPE)0, sig);
-#else
-            FN(syrk)(m, n_v, (RTYPE)1, V, (RTYPE)0, sig);
-#endif
-        } else {
-            /* Compute B*V in wrk1 */
-            for (uint64_t j = 0; j < n_v; j++)
-                B->matvec(B, &V[j * m], &wrk1[j * m]);
-            /* sig = V^H * (B*V) */
-#ifdef CTYPE_IS_COMPLEX
-            FN(gemm_hn)(n_v, n_v, m, (CTYPE)1, V, wrk1, (CTYPE)0, sig);
-#else
-            FN(gemm_tn)(n_v, n_v, m, (CTYPE)1, V, wrk1, (CTYPE)0, sig);
-#endif
-        }
+        FN(gram_self)(V, m, n_v, B, sig, n_v, wrk1);
         FN(fill_lower_oi)(n_v, sig);
     }
 
@@ -129,36 +112,20 @@ uint64_t FN(ortho_indefinite)(
     if (NULL == B) {
         BV_norm = FN(matrix_nrm)(m, n_v, V);
     } else {
-        /* B*V already in wrk1 from sig computation, or compute it */
-        if (NULL != sig_local) {
-            /* Already computed above */
-            BV_norm = FN(matrix_nrm)(m, n_v, wrk1);
-        } else {
-            /* Need to compute B*V */
-            for (uint64_t j = 0; j < n_v; j++)
-                B->matvec(B, &V[j * m], &wrk1[j * m]);
-            BV_norm = FN(matrix_nrm)(m, n_v, wrk1);
+        if (NULL == sig_local) {
+            /* sig was provided externally, need to compute B*V */
+            FN(apply_block_op)(B, V, wrk1, m, n_v);
         }
+        /* B*V already in wrk1 from gram_self above (if sig_local != NULL) */
+        BV_norm = FN(matrix_nrm)(m, n_v, wrk1);
     }
     if (BV_norm < eps_ortho) BV_norm = (RTYPE)1;
 
     /* Outer iterations: project out V component and re-orthonormalize */
     for (uint64_t outer = 0; outer < max_outer; outer++) {
 
-        /* Compute B*U in wrk2 */
-        if (NULL == B) {
-            memcpy(wrk2, U, m * n_u * sizeof(CTYPE));
-        } else {
-            for (uint64_t j = 0; j < n_u; j++)
-                B->matvec(B, &U[j * m], &wrk2[j * m]);
-        }
-
         /* coef = V^H * B * U (n_v x n_u matrix in wrk3) */
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk2, (CTYPE)0, wrk3);
-#else
-        FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk2, (CTYPE)0, wrk3);
-#endif
+        FN(gram_cross)(V, n_v, U, n_u, m, B, wrk3, n_v, wrk2);
 
         /* tmp = sig * coef (n_v x n_u matrix in wrk1, reusing space) */
         /* Note: wrk1 has size m*max(n_u,n_v), and n_v*n_u <= m*max(n_u,n_v) typically */
@@ -180,21 +147,7 @@ uint64_t FN(ortho_indefinite)(
             FN(svqb)(m, n_u, eps_drop, 'n', U, wrk1, wrk2, wrk3, B);
 
             /* Check orthonormality: ||U^H*B*U - I||_F */
-            if (NULL == B) {
-#ifdef CTYPE_IS_COMPLEX
-                FN(herk)(m, n_u, (RTYPE)1, U, (RTYPE)0, wrk1);
-#else
-                FN(syrk)(m, n_u, (RTYPE)1, U, (RTYPE)0, wrk1);
-#endif
-            } else {
-                for (uint64_t j = 0; j < n_u; j++)
-                    B->matvec(B, &U[j * m], &wrk2[j * m]);
-#ifdef CTYPE_IS_COMPLEX
-                FN(gemm_hn)(n_u, n_u, m, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#else
-                FN(gemm_tn)(n_u, n_u, m, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#endif
-            }
+            FN(gram_self)(U, m, n_u, B, wrk1, n_u, wrk2);
             FN(fill_lower_oi)(n_u, wrk1);
 
             /* Subtract identity and compute Frobenius norm */
@@ -206,18 +159,7 @@ uint64_t FN(ortho_indefinite)(
         }
 
         /* Check ||V^H*B*U||_F for convergence */
-        if (NULL == B) {
-            memcpy(wrk2, U, m * n_u * sizeof(CTYPE));
-        } else {
-            for (uint64_t j = 0; j < n_u; j++)
-                B->matvec(B, &U[j * m], &wrk2[j * m]);
-        }
-
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk2, (CTYPE)0, wrk3);
-#else
-        FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk2, (CTYPE)0, wrk3);
-#endif
+        FN(gram_cross)(V, n_v, U, n_u, m, B, wrk3, n_v, wrk2);
 
         RTYPE U_norm = FN(matrix_nrm)(m, n_u, U);
         if (U_norm < eps_ortho) U_norm = (RTYPE)1;
