@@ -142,6 +142,8 @@
 - [x] Extract Cx coefficients for X update
 - [x] Extract Cp coefficients for P update
 - [x] Switch to upper Cholesky + trsm_run (same fixes as standard RR)
+- [x] Add useOrtho==1 branch: direct eigensolve on S^H*A*S (no Gram/Cholesky/D_inv_R)
+- [x] Fix Cp QR dimensions: store Z2 (not Z2^T), QR on tall matrix, fix K in GEMM (both branches)
 
 **Verify:** Reconstruction test - `X_new = S * Cx` gives correct result ✓ PASSED
 
@@ -190,7 +192,7 @@
 
 ### Initialization & Support
 - [x] Implement `reset_eigenvectors()` - fill X with Gaussian random
-- [x] Implement `setup_S()` - assemble S = [X,W] or [X,P,W]
+- [x] ~~Implement `setup_S()`~~ — removed; S layout [X,P,W] makes it unnecessary
 - [x] Implement `project_back()` - X = S*Cx, P = S*Cp
 - [x] Implement `estimate_norm()` - power iteration for ||A||
 
@@ -209,6 +211,8 @@
 - [x] Create `src/core/lobpcg_impl.inc`
 - [x] Implement initialization (random X, initial Rayleigh-Ritz)
 - [x] Implement main iteration loop
+- [x] Fix S pointer layout: [X,W,P] → [X,P,W], removed setup_S
+- [x] Fix ortho_drop iter check: `if(1==iter)` → `if(0==iter)`
 - [ ] Implement soft-locking (skip converged columns)
 - [x] Implement convergence checking
 - [ ] Support `cache_products` option for implicit product update

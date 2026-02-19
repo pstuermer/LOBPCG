@@ -68,26 +68,9 @@ static RTYPE FN(estimate_norm)(uint64_t size, LINOP *A, CTYPE *wrk1, CTYPE *wrk2
     return nrm;
 }
 
-/* Helper: Assemble S = [X, P, W] or [X, W] */
-// TODO: this is redundant and takes a lot of memory. S in itself is
-// already an array of [X,P,W], so there is no need to also store
-// X, P and W independently
-// you can also see that further down when you first define X,P, and W
-// in the main LOBPCG iteration
-static void FN(setup_S)(uint64_t size, uint64_t sizeSub, uint64_t iter,
-                        CTYPE *X, CTYPE *P, CTYPE *W, CTYPE *S) {
-    /* X is first sizeSub columns */
-    memcpy(S, X, size * sizeSub * sizeof(CTYPE));
-
-    if (0 == iter) {
-        /* S = [X, W] */
-        memcpy(S + size * sizeSub, W, size * sizeSub * sizeof(CTYPE));
-    } else {
-        /* S = [X, P, W] */
-        memcpy(S + size * sizeSub, P, size * sizeSub * sizeof(CTYPE));
-        memcpy(S + size * 2 * sizeSub, W, size * sizeSub * sizeof(CTYPE));
-    }
-}
+/* Note: S layout is [X, P, W] with X at offset 0, P at offset sizeSub, W at offset 2*sizeSub.
+ * At iter==0, P does not exist yet, so we copy W into the P slot to get S = [X, W_copy]
+ * for mult=2 Rayleigh-Ritz. At iter>=1, S = [X, P, W] is already contiguous for mult=3. */
 
 /* Helper: Project back X = S * C */
 // TODO: in the long term, get rid of this
@@ -128,10 +111,10 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     const RTYPE eps_ortho = 1e-12;
     const RTYPE eps_drop = 1e-12;
 
-    /* Pointers into S for X, P, W */
+    /* Pointers into S = [X, P, W] */
     CTYPE *X = alg->S;
-    CTYPE *W = alg->S + size * sizeSub;
-    CTYPE *P = alg->S + size * 2 * sizeSub;  /* Only used after first iteration */
+    CTYPE *P = alg->S + size * sizeSub;      /* Only meaningful after first iteration */
+    CTYPE *W = alg->S + size * 2 * sizeSub;
 
     /* Estimate operator norms */
     RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
@@ -183,23 +166,22 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
             memcpy(W, alg->wrk1, size * sizeSub * sizeof(CTYPE));
         }
 
-        /* If useOrtho: orthogonalize W against [X, P] */
+        /* If useOrtho: orthogonalize W against [X] (iter==0) or [X, P] (iter>=1) */
         if (useOrtho) {
-            if (1 == alg->iter) {
-                /* Only X exists */
+            if (0 == alg->iter) {
                 FN(ortho_drop)(size, sizeSub, sizeSub, eps_ortho, eps_drop,
                                W, X, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
             } else {
-                /* Need to orthogonalize against [X, P] - use wrk4 to assemble */
-                memcpy(alg->wrk4, X, size * sizeSub * sizeof(CTYPE));
-                memcpy(alg->wrk4 + size * sizeSub, P, size * sizeSub * sizeof(CTYPE));
+                /* [X, P] = S[0:2*sizeSub] is contiguous */
                 FN(ortho_drop)(size, sizeSub, 2 * sizeSub, eps_ortho, eps_drop,
-                               W, alg->wrk4, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+                               W, alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
             }
         }
 
-        /* Assemble S = [X, W] or [X, P, W] */
-        FN(setup_S)(size, sizeSub, alg->iter, X, P, W, alg->S);
+        /* At iter==0, copy W into P slot so S[0:2*sizeSub] = [X, W] for mult=2 RR */
+        if (0 == alg->iter) {
+            memcpy(P, W, size * sizeSub * sizeof(CTYPE));
+        }
 
         /* Modified Rayleigh-Ritz */
         FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
@@ -210,17 +192,17 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
         if (2 == useOrtho) {
             useOrtho = 1;
             /* Re-orthogonalize W */
-            if (1 == alg->iter) {
+            if (0 == alg->iter) {
                 FN(ortho_drop)(size, sizeSub, sizeSub, eps_ortho, eps_drop,
                                W, X, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
             } else {
-                memcpy(alg->wrk4, X, size * sizeSub * sizeof(CTYPE));
-                memcpy(alg->wrk4 + size * sizeSub, P, size * sizeSub * sizeof(CTYPE));
                 FN(ortho_drop)(size, sizeSub, 2 * sizeSub, eps_ortho, eps_drop,
-                               W, alg->wrk4, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+                               W, alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
             }
-            /* Reassemble S */
-            FN(setup_S)(size, sizeSub, alg->iter, X, P, W, alg->S);
+            /* Re-copy W into P slot at iter==0 */
+            if (0 == alg->iter) {
+                memcpy(P, W, size * sizeSub * sizeof(CTYPE));
+            }
             /* Retry RR with useOrtho=1 */
             FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
                                        alg->S, alg->wrk1, alg->wrk2, alg->wrk3,

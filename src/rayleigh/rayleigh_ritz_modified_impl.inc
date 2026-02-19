@@ -92,35 +92,34 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
         }
         /* wrk1 now contains eigenvectors (column-major) */
 
-        /* Extract Z2^T (nx x n_remainder) from rows [nx:sizeSub] of first nx eigvecs */
+        /* Extract Z2 (n_remainder x nx) from rows [nx:sizeSub] of first nx eigvecs */
         memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
         for (uint64_t i = 0; i < nx; i++) {
             for (uint64_t j = 0; j < n_remainder; j++) {
-                wrk2[i + j*nx] = wrk1[nx + j + i*sizeSub];
+                wrk2[j + i*n_remainder] = wrk1[(nx + j) + i*sizeSub];
             }
         }
 
-        /* QR factorization of Z2^T (nx x n_remainder) */
-        if (0 != FN(geqrf)(nx, n_remainder, wrk2, tau)) {
+        /* QR factorization of Z2 (n_remainder x nx) — tall matrix */
+        if (0 != FN(geqrf)(n_remainder, nx, wrk2, tau)) {
             fprintf(stderr, "rayleigh_ritz_modified(ortho): geqrf failed\n");
             safe_free((void**)&eigvals_r);
             safe_free((void**)&tau);
             return;
         }
 
-        /* Generate Q_orth (nx x nx) */
-        uint64_t k = MIN(nx, n_remainder);
+        /* Generate Q_orth (n_remainder x nx) */
 #ifdef CTYPE_IS_COMPLEX
-        if (0 != FN(ungqr)(nx, nx, k, wrk2, tau)) {
+        if (0 != FN(ungqr)(n_remainder, nx, nx, wrk2, tau)) {
 #else
-        if (0 != FN(orgqr)(nx, nx, k, wrk2, tau)) {
+        if (0 != FN(orgqr)(n_remainder, nx, nx, wrk2, tau)) {
 #endif
             fprintf(stderr, "rayleigh_ritz_modified(ortho): ungqr/orgqr failed\n");
             safe_free((void**)&eigvals_r);
             safe_free((void**)&tau);
             return;
         }
-        /* wrk2 now contains Q_orth (nx x nx) */
+        /* wrk2 now contains Q_orth (n_remainder x nx) */
 
         /* Cx = first nx columns of eigenvectors (no D_inv_R transform) */
         memset(Cx, 0, sizeSub * nx * sizeof(CTYPE));
@@ -139,9 +138,9 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
             }
         }
 
-        /* Cp = wrk3 * Q_orth  (sizeSub x n_remainder) * (nx x nx) -> (sizeSub x nx) */
+        /* Cp = wrk3 * Q_orth  (sizeSub x n_remainder) * (n_remainder x nx) -> (sizeSub x nx) */
         memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
-        FN(gemm_nn)(sizeSub, nx, nx, (CTYPE)1, wrk3, wrk2, (CTYPE)0, Cp);
+        FN(gemm_nn)(sizeSub, nx, n_remainder, (CTYPE)1, wrk3, wrk2, (CTYPE)0, Cp);
 
         /* Copy eigenvalues */
         for (uint64_t i = 0; i < nx; i++) {
@@ -266,17 +265,16 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     FN(gemm_nn)(sizeSub, nx, sizeSub, (CTYPE)1, wrk3, Cx, (CTYPE)0, wrk2);
     memcpy(Cx, wrk2, sizeSub * nx * sizeof(CTYPE));
 
-    /* 12. Extract Z2 = rows [nx : sizeSub] of first nx eigenvectors */
-    /*     This is Z2^T (nx x (mult-1)*nx) - rows nx onwards, columns 0 to nx-1 */
+    /* 12. Extract Z2 (n_remainder x nx) — rows [nx:sizeSub] of first nx eigenvectors */
     memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
     for (uint64_t i = 0; i < nx; i++) {
         for (uint64_t j = 0; j < n_remainder; j++) {
-            wrk2[i + j*nx] = wrk1[nx + j + i*sizeSub];
+            wrk2[j + i*n_remainder] = wrk1[(nx + j) + i*sizeSub];
         }
     }
 
-    /* 13. QR factorization of Z2^T (nx x n_remainder) to get Q_orth */
-    if (0 != FN(geqrf)(nx, n_remainder, wrk2, tau)) {
+    /* 13. QR factorization of Z2 (n_remainder x nx) — tall matrix */
+    if (0 != FN(geqrf)(n_remainder, nx, wrk2, tau)) {
         fprintf(stderr, "rayleigh_ritz_modified: geqrf failed\n");
         safe_free((void**)&eigvals_r);
         safe_free((void**)&D);
@@ -284,22 +282,19 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
         return;
     }
 
-    /* ungqr/orgqr: generate Q from Householder reflectors (nx x nx submatrix) */
-    {
-        uint64_t k = MIN(nx, n_remainder);
+    /* ungqr/orgqr: generate Q from Householder reflectors (n_remainder x nx) */
 #ifdef CTYPE_IS_COMPLEX
-        if (0 != FN(ungqr)(nx, nx, k, wrk2, tau)) {
+    if (0 != FN(ungqr)(n_remainder, nx, nx, wrk2, tau)) {
 #else
-        if (0 != FN(orgqr)(nx, nx, k, wrk2, tau)) {
+    if (0 != FN(orgqr)(n_remainder, nx, nx, wrk2, tau)) {
 #endif
-            fprintf(stderr, "rayleigh_ritz_modified: ungqr/orgqr failed\n");
-            safe_free((void**)&eigvals_r);
-            safe_free((void**)&D);
-            safe_free((void**)&tau);
-            return;
-        }
+        fprintf(stderr, "rayleigh_ritz_modified: ungqr/orgqr failed\n");
+        safe_free((void**)&eigvals_r);
+        safe_free((void**)&D);
+        safe_free((void**)&tau);
+        return;
     }
-    /* wrk2 now contains Q_orth (nx x nx, only first nx columns) */
+    /* wrk2 now contains Q_orth (n_remainder x nx) */
 
     /* 14. Extract [Z2_full] = rows [nx : sizeSub] of eigenvectors nx onwards */
     memset(Cp, 0, sizeSub * n_remainder * sizeof(CTYPE));
@@ -312,9 +307,9 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     /* 15. Cp_tmp = D_inv_R * Cp */
     FN(gemm_nn)(sizeSub, n_remainder, sizeSub, (CTYPE)1, wrk3, Cp, (CTYPE)0, wrk1);
 
-    /* 16. Cp_final = Cp_tmp * Q_orth */
+    /* 16. Cp_final = Cp_tmp * Q_orth  (sizeSub x n_remainder) * (n_remainder x nx) */
     memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
-    FN(gemm_nn)(sizeSub, nx, nx, (CTYPE)1, wrk1, wrk2, (CTYPE)0, Cp);
+    FN(gemm_nn)(sizeSub, nx, n_remainder, (CTYPE)1, wrk1, wrk2, (CTYPE)0, Cp);
 
     /* Copy eigenvalues to output */
     for (uint64_t i = 0; i < nx; i++) {
