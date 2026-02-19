@@ -474,6 +474,43 @@ TYPE_LIST(DECLARE_GRAM_CROSS)
   )(V, nv, U, nu, n, B, G, ldg, wrk)
 
 /* --------------------------------------------------------------------
+ * Function declarations: fill_random
+ * Fill array with uniform random values
+ * ------------------------------------------------------------------ */
+#define DECLARE_FILL_RANDOM(prefix, ctype, rtype, linop) \
+  void prefix##_fill_random(uint64_t n, ctype *x);
+
+TYPE_LIST(DECLARE_FILL_RANDOM)
+#undef DECLARE_FILL_RANDOM
+
+#define fill_random(n, x)               \
+  _Generic((x),                         \
+    f32 *: s_fill_random,               \
+    f64 *: d_fill_random,               \
+    c32 *: c_fill_random,               \
+    c64 *: z_fill_random                \
+  )(n, x)
+
+/* --------------------------------------------------------------------
+ * Function declarations: estimate_norm
+ * Estimate spectral radius via power iteration
+ * ------------------------------------------------------------------ */
+#define DECLARE_ESTIMATE_NORM(prefix, ctype, rtype, linop) \
+  rtype prefix##_estimate_norm(uint64_t size, linop *A,    \
+                               ctype *wrk1, ctype *wrk2);
+
+TYPE_LIST(DECLARE_ESTIMATE_NORM)
+#undef DECLARE_ESTIMATE_NORM
+
+#define estimate_norm(size, A, wrk1, wrk2)  \
+  _Generic((wrk1),                          \
+    f32 *: s_estimate_norm,                 \
+    f64 *: d_estimate_norm,                 \
+    c32 *: c_estimate_norm,                 \
+    c64 *: z_estimate_norm                  \
+  )(size, A, wrk1, wrk2)
+
+/* --------------------------------------------------------------------
  * K-based Rayleigh-Ritz: aliases to standard RR
  * (algorithmically identical — both use Cholesky + HEEV)
  * ------------------------------------------------------------------ */

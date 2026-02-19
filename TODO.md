@@ -193,13 +193,19 @@
 - [x] ~~Implement `setup_S()`~~ — removed; S layout [X,P,W] makes it unnecessary
 - [x] Implement `project_back()` - X = S*Cx, P = S*Cp
 - [x] Implement `estimate_norm()` - power iteration for ||A||
+- [x] Extract `fill_random` and `estimate_norm` to standalone `src/residual/estimate_norm_impl.inc` + instantiation files
+- [x] Remove static duplicates from `lobpcg_impl.inc` and `ilobpcg_impl.inc`
+- [x] Add `DECLARE_FILL_RANDOM` / `DECLARE_ESTIMATE_NORM` + `_Generic` macros to `lobpcg.h`
+- [x] Create `tests/test_estimate_norm.c` (real 3x3 + complex 3x3, both pass)
 
 ### Residual Computation
 - [x] Create `src/residual/residual_impl.inc`
 - [x] Implement `R = A*X - B*X*diag(lambda)`
 - [x] Implement relative norm computation: ||R_i|| / (λ_i * ||A||)
+- [x] Add complex eigvec test, non-eigvec tests (real/complex), B-operator tests, analytical residual norm tests to `test_residual.c` (11 tests, all pass)
 
-**Verify:** `test_residual.c` - residual of exact eigenvector is zero ✓ PASSED
+**Verify:** `test_residual.c` - 11/11 tests pass ✓ PASSED
+**Verify:** `test_estimate_norm.c` - 2/2 tests pass ✓ PASSED
 
 ### Preconditioner
 - [x] Implement `apply_precond()` - call preconditioner LinearOperator

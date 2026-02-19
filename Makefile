@@ -27,7 +27,7 @@ OBJ = $(patsubst %.c,%.o,$(SRC))
 # Tests
 TESTS = build/test_blas.ex build/test_memory.ex build/linop_test.ex build/test_gram.ex build/test_svqb.ex build/test_ortho_indefinite.ex \
         build/test_ortho_drop.ex build/test_ortho_randomize.ex build/test_svqb_mat.ex build/test_ortho_randomized_mat.ex \
-        build/test_rayleigh_ritz.ex build/test_residual.ex build/test_lobpcg.ex build/test_indefinite_rr.ex \
+        build/test_rayleigh_ritz.ex build/test_residual.ex build/test_estimate_norm.ex build/test_lobpcg.ex build/test_indefinite_rr.ex \
         build/test_ilobpcg.ex
 
 .PHONY: all lib tests run-tests clean
@@ -122,7 +122,14 @@ build/test_indefinite_rr.ex: tests/test_indefinite_rr.c $(INDEF_RR_SRC) $(INDEF_
 RESIDUAL_SRC = src/residual/residual_s.c src/residual/residual_d.c \
                src/residual/residual_c.c src/residual/residual_z.c
 
+ESTIMATE_NORM_SRC = src/residual/estimate_norm_s.c src/residual/estimate_norm_d.c \
+                    src/residual/estimate_norm_c.c src/residual/estimate_norm_z.c
+
 build/test_residual.ex: tests/test_residual.c $(RESIDUAL_SRC) $(GRAM_SRC)
+	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
+
+# estimate_norm test
+build/test_estimate_norm.ex: tests/test_estimate_norm.c $(ESTIMATE_NORM_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # LOBPCG integration test
@@ -130,7 +137,7 @@ LOBPCG_CORE_SRC = src/core/lobpcg_s.c src/core/lobpcg_d.c \
                   src/core/lobpcg_c.c src/core/lobpcg_z.c
 
 build/test_lobpcg.ex: tests/test_lobpcg.c $(LOBPCG_CORE_SRC) $(RAYLEIGH_SRC) $(RAYLEIGH_MOD_SRC) \
-                      $(RESIDUAL_SRC) $(ORTHO_DROP_SRC) $(SVQB_SRC) $(GRAM_SRC)
+                      $(RESIDUAL_SRC) $(ESTIMATE_NORM_SRC) $(ORTHO_DROP_SRC) $(SVQB_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 # iLOBPCG integration test
@@ -138,7 +145,7 @@ ILOBPCG_CORE_SRC = src/core/ilobpcg_s.c src/core/ilobpcg_d.c \
                    src/core/ilobpcg_c.c src/core/ilobpcg_z.c
 
 build/test_ilobpcg.ex: tests/test_ilobpcg.c $(ILOBPCG_CORE_SRC) $(INDEF_RR_SRC) $(INDEF_RR_MOD_SRC) \
-                       $(RESIDUAL_SRC) $(ORTHO_INDEF_SRC) $(SVQB_SRC) $(GRAM_SRC)
+                       $(RESIDUAL_SRC) $(ESTIMATE_NORM_SRC) $(ORTHO_INDEF_SRC) $(SVQB_SRC) $(GRAM_SRC)
 	$(CC) $(CFLAGS) $(INCLUDES) $^ -o $@ $(LDFLAGS)
 
 run-tests: tests

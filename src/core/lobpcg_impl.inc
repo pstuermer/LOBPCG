@@ -8,7 +8,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
@@ -23,50 +22,7 @@
   #define CREAL(x) (x)
 #endif
 
-// TODO: these are not gaussian random?
-// There is an implementation in the reference for that
-// fix later
-/* Helper: Fill array with Gaussian random values */
-static void FN(fill_random)(uint64_t n, CTYPE *x) {
-    static int seed_initialized = 0;
-    if (0 == seed_initialized) {
-        srand((unsigned int)time(NULL));
-        seed_initialized = 1;
-    }
-
-    for (uint64_t i = 0; i < n; i++) {
-#ifdef CTYPE_IS_COMPLEX
-        RTYPE re = (RTYPE)rand() / RAND_MAX - 0.5;
-        RTYPE im = (RTYPE)rand() / RAND_MAX - 0.5;
-        x[i] = re + im * I;
-#else
-        x[i] = (RTYPE)rand() / RAND_MAX - 0.5;
-#endif
-    }
-}
-
-// TODO: Check if this is the same as in reference implementation
-/* Helper: Estimate ||A|| via power iteration */
-static RTYPE FN(estimate_norm)(uint64_t size, LINOP *A, CTYPE *wrk1, CTYPE *wrk2) {
-    const uint64_t max_iter = 10;
-
-    /* Initialize with random vector */
-    FN(fill_random)(size, wrk1);
-    RTYPE nrm = FN(nrm2)(size, wrk1);
-    FN(scal)(size, (CTYPE)((RTYPE)1 / nrm), wrk1);
-
-    /* Power iteration */
-    for (uint64_t iter = 0; iter < max_iter; iter++) {
-        A->matvec(A, wrk1, wrk2);
-        nrm = FN(nrm2)(size, wrk2);
-        if (nrm > 0) {
-            FN(scal)(size, (CTYPE)((RTYPE)1 / nrm), wrk2);
-        }
-        memcpy(wrk1, wrk2, size * sizeof(CTYPE));
-    }
-
-    return nrm;
-}
+/* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
 
 /* Note: S layout is [X, P, W] with X at offset 0, P at offset sizeSub, W at offset 2*sizeSub.
  * At iter==0, P does not exist yet, so we copy W into the P slot to get S = [X, W_copy]
@@ -110,8 +66,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
     /* Pointers into S = [X, P, W] */
     CTYPE *X = alg->S;
-    CTYPE *W = alg->S + size * sizeSub;
-    /* Later add P */
+    CTYPE *P = alg->S + size * sizeSub;
+    CTYPE *W = alg->S + size * 2 * sizeSub;
 
     /* Estimate operator norms */
     RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
@@ -193,8 +149,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
       }
 
       /* redefine P and W after first iteration */
-      *P = alg->S + size * sizeSub;
-      *W = alg->S + size * 2 * sizeSub;
+      P = alg->S + size * sizeSub;
+      W = alg->S + size * 2 * sizeSub;
 
       /* Project back: X = S * Cx, P = S * Cp */
       FN(project_back)(size, sizeSub, mult, alg->S, alg->Cx, X, alg->wrk4);

@@ -11,7 +11,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
-#include <time.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
@@ -26,46 +25,7 @@
 #define CREAL(x) (x)
 #endif
 
-/* Helper: Fill array with Gaussian random values */
-// TODO: how is this different from the other one, besides
-// it being static?
-static void FN(ifill_random)(uint64_t n, CTYPE *x) {
-  static int seed_initialized = 0;
-  if (0 == seed_initialized) {
-    srand((unsigned int)time(NULL));
-    seed_initialized = 1;
-  }
-
-  for (uint64_t i = 0; i < n; i++) {
-#ifdef CTYPE_IS_COMPLEX
-    RTYPE re = (RTYPE)rand() / RAND_MAX - 0.5;
-    RTYPE im = (RTYPE)rand() / RAND_MAX - 0.5;
-    x[i] = re + im * I;
-#else
-    x[i] = (RTYPE)rand() / RAND_MAX - 0.5;
-#endif
-  }
-}
-
-/* Helper: Estimate ||A|| via power iteration */
-static RTYPE FN(iestimate_norm)(uint64_t size, LINOP *A, CTYPE *wrk1, CTYPE *wrk2) {
-  const uint64_t max_iter = 10;
-
-  FN(ifill_random)(size, wrk1);
-  RTYPE nrm = FN(nrm2)(size, wrk1);
-  FN(scal)(size, (CTYPE)((RTYPE)1 / nrm), wrk1);
-
-  for (uint64_t iter = 0; iter < max_iter; iter++) {
-    A->matvec(A, wrk1, wrk2);
-    nrm = FN(nrm2)(size, wrk2);
-    if (nrm > 0) {
-      FN(scal)(size, (CTYPE)((RTYPE)1 / nrm), wrk2);
-    }
-    memcpy(wrk1, wrk2, size * sizeof(CTYPE));
-  }
-
-  return nrm;
-}
+/* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
 
 /* Indefinite LOBPCG solver
  *
@@ -116,8 +76,8 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   CTYPE *P = alg->S + size * 2 * sizeSub;
 
   /* Estimate operator norms */
-  RTYPE ANorm = FN(iestimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
-  RTYPE BNorm = FN(iestimate_norm)(size, alg->B, alg->wrk1, alg->wrk2);
+  RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
+  RTYPE BNorm = FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2);
 
   /* Initialize eigenvectors if needed */
   // TODO: here a custom initialization would be good
@@ -125,7 +85,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   // vectors (see reference implementation)
   RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
   if (x_norm < 1e-14) {
-    FN(ifill_random)(size * sizeSub, X);
+    FN(fill_random)(size * sizeSub, X);
   }
 
   /* B-orthonormalize X via svqb */
