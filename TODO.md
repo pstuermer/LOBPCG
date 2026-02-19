@@ -171,9 +171,7 @@
   - `xcalloc(num, size)` - 64-byte aligned calloc with overflow check
   - `safe_free(void**)` - properly nullifying free (fixes reference bug)
 - [x] Remove memory functions from `linop.h` (lines 25-39)
-- [ ] Create `src/core/lobpcg_alloc.inc`
-- [ ] Implement `lobpcg_alloc()` - allocate lobpcg_t struct
-- [ ] Implement `lobpcg_free()` - free all workspace
+- [x] Implement `lobpcg_alloc()`/`lobpcg_free()`/`ilobpcg_alloc()` as inline X-macros in lobpcg.h
 - [ ] Implement `lobpcg_setup()` - init params, allocate X,W,P,S,Cx,Cp
 - [ ] Support optional `cache_products` flag for AX,AW,AP
 - [ ] (Future) Portability: Add aligned_alloc fallbacks
