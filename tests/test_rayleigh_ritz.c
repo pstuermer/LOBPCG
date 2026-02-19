@@ -9,7 +9,7 @@
 #include <complex.h>
 #include "types.h"
 #include "lobpcg.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/blas_wrapper.h"
 #include "lobpcg/memory.h"
 

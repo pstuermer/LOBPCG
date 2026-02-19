@@ -21,6 +21,7 @@
   #define CABS(x) fabs(x)
   #define CREAL(x) (x)
 #endif
+#define RABS(x) ((x) >= 0 ? (x) : -(x))
 
 /* Compute residual R = A*X - B*X*eigVal
  *
@@ -37,7 +38,7 @@
  */
 void FN(get_residual)(const uint64_t size, const uint64_t sizeSub,
                       CTYPE *restrict X, CTYPE *restrict AX, CTYPE *restrict R,
-                      CTYPE *restrict eigVal, CTYPE *restrict wrk,
+                      RTYPE *restrict eigVal, CTYPE *restrict wrk,
                       LINOP *A, LINOP *B) {
 
   /* 1. Compute R = A*X or copy from AX */
@@ -82,7 +83,7 @@ void FN(get_residual)(const uint64_t size, const uint64_t sizeSub,
  */
 void FN(get_residual_norm)(const uint64_t size, const uint64_t sizeSub,
                            const uint64_t nev, CTYPE *restrict W,
-                           CTYPE *restrict eigVals, RTYPE *restrict resNorm,
+                           RTYPE *restrict eigVals, RTYPE *restrict resNorm,
                            CTYPE *restrict wrk1, CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                            const RTYPE ANorm, const RTYPE BNorm, LINOP *B) {
 
@@ -108,7 +109,7 @@ void FN(get_residual_norm)(const uint64_t size, const uint64_t sizeSub,
     }
 
     /* denom = ANorm + |eigVal[i]| * BNorm */
-    const RTYPE lambda_abs = CABS(eigVals[i]);
+    const RTYPE lambda_abs = RABS(eigVals[i]);
     const RTYPE denom = ANorm + lambda_abs * (BNorm > 0 ? BNorm : (RTYPE)1);
 
     resNorm[i] = nom / denom;
@@ -120,3 +121,4 @@ void FN(get_residual_norm)(const uint64_t size, const uint64_t sizeSub,
 #undef FN
 #undef CABS
 #undef CREAL
+#undef RABS

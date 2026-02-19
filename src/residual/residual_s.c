@@ -1,5 +1,5 @@
 #include "lobpcg.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/blas_wrapper.h"
 
 #define PREFIX s

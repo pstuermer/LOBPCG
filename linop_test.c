@@ -1,4 +1,4 @@
-#include "linop.h"
+#include "lobpcg/linop.h"
 
 // do the other test cases as well for complex and float
 
@@ -70,7 +70,7 @@ void test_identity_operator() {
   print_vector_d(x, n, "x");
   print_vector_d(y, n, "I*x");
 
-  linop_destroy( ident );
+  linop_destroy( &ident );
 }
 
 

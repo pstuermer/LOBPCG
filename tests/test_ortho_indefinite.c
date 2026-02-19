@@ -17,7 +17,7 @@
 #include "lobpcg/types.h"
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/memory.h"
 
 #define TOL_F32 1e-4
@@ -317,7 +317,7 @@ TEST(d_ortho_indefinite_basic) {
     /* Cleanup */
     safe_free((void**)&V); safe_free((void**)&U); safe_free((void**)&sig);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    linop_destroy_d(B);
+    linop_destroy_d(&B);
 }
 
 TEST(d_ortho_indefinite_no_sig) {
@@ -356,7 +356,7 @@ TEST(d_ortho_indefinite_no_sig) {
 
     safe_free((void**)&V); safe_free((void**)&U);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    linop_destroy_d(B);
+    linop_destroy_d(&B);
 }
 
 /* ====================================================================
@@ -396,7 +396,7 @@ TEST(z_ortho_indefinite_basic) {
 
     safe_free((void**)&V); safe_free((void**)&U);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    linop_destroy_z(B);
+    linop_destroy_z(&B);
 }
 
 TEST(z_ortho_indefinite_larger) {
@@ -429,7 +429,7 @@ TEST(z_ortho_indefinite_larger) {
 
     safe_free((void**)&V); safe_free((void**)&U);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    linop_destroy_z(B);
+    linop_destroy_z(&B);
 }
 
 /* ====================================================================

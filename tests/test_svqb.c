@@ -12,7 +12,7 @@
 #include "lobpcg/types.h"
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/memory.h"
 
 #define TOL_F32 1e-5
@@ -54,6 +54,14 @@ static void fill_random_z(uint64_t n, c64 *x) {
 static f64 ortho_error_d(uint64_t m, uint64_t n, const f64 *U) {
     f64 *G = xcalloc(n * n, sizeof(f64));
     d_syrk(m, n, 1.0, U, 0.0, G);
+
+    /*    for (uint64_t j = 0; j < n; j++) {
+      for (uint64_t i = 0; i < n; i++) {
+	printf("%.3e\t",G[i+j*n]);
+      }
+      printf("\n");
+      }*/
+    
     /* Fill lower and subtract I */
     for (uint64_t j = 0; j < n; j++) {
         for (uint64_t i = j; i < n; i++) {
@@ -62,12 +70,12 @@ static f64 ortho_error_d(uint64_t m, uint64_t n, const f64 *U) {
         }
     }
 
-    for (uint64_t j = 0; j < n; j++) {
+    /*    for (uint64_t j = 0; j < n; j++) {
       for (uint64_t i = 0; i < n; i++) {
 	printf("%.3e\t",G[i+j*n]);
       }
       printf("\n");
-    }
+      }*/
 
     f64 err = d_nrm2(n*n, G);
     safe_free((void**)&G);

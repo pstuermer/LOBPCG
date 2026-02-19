@@ -126,21 +126,9 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
         FN(fill_random)(size * sizeSub, X);
     }
 
-    /* Workspace for real eigenvalues (used by both initial and modified RR) */
-    RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
-
     /* Initial Rayleigh-Ritz on X */
-    FN(rayleigh_ritz)(size, sizeSub, X, alg->Cx, eigvals_r,
+    FN(rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
                       alg->wrk1, alg->wrk2, alg->wrk3, alg->A, alg->B);
-
-    /* Copy real eigenvalues into CTYPE eigVals array */
-    for (uint64_t i = 0; i < sizeSub; i++) {
-#ifdef CTYPE_IS_COMPLEX
-        alg->eigVals[i] = eigvals_r[i] + 0*I;
-#else
-        alg->eigVals[i] = eigvals_r[i];
-#endif
-    }
 
     /* Project back: X = X * Cx */
     FN(project_back)(size, sizeSub, 1, X, alg->Cx, X, alg->wrk4);
@@ -186,7 +174,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
         /* Modified Rayleigh-Ritz */
         FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
                                    alg->S, alg->wrk1, alg->wrk2, alg->wrk3,
-                                   alg->Cx, alg->Cp, eigvals_r, alg->A, alg->B);
+                                   alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
 
         /* If condition check failed: set useOrtho and retry */
         if (2 == useOrtho) {
@@ -206,16 +194,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
             /* Retry RR with useOrtho=1 */
             FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
                                        alg->S, alg->wrk1, alg->wrk2, alg->wrk3,
-                                       alg->Cx, alg->Cp, eigvals_r, alg->A, alg->B);
-        }
-
-        /* Copy real eigenvalues into CTYPE eigVals array */
-        for (uint64_t i = 0; i < sizeSub; i++) {
-#ifdef CTYPE_IS_COMPLEX
-            alg->eigVals[i] = eigvals_r[i] + 0*I;
-#else
-            alg->eigVals[i] = eigvals_r[i];
-#endif
+                                       alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
         }
 
         /* Project back: X = S * Cx, P = S * Cp */
@@ -242,8 +221,6 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
         alg->iter++;
     }
-
-    safe_free((void**)&eigvals_r);
 
     /* Final eigenvectors are in X = alg->S */
 }

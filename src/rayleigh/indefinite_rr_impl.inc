@@ -35,7 +35,7 @@
  * signature: array of int8_t +1/-1 (length n), reordered in-place
  * indices:   output permutation (length n), filled with original indices
  */
-static void FN(bubble_sort_sig)(CTYPE *eigVal, int8_t *signature,
+static void FN(bubble_sort_sig)(RTYPE *eigVal, int8_t *signature,
                                  uint64_t *indices, uint64_t n) {
     for (uint64_t i = 0; i < n; i++)
         indices[i] = i;
@@ -45,8 +45,8 @@ static void FN(bubble_sort_sig)(CTYPE *eigVal, int8_t *signature,
         for (uint64_t j = 0; j + 1 < n - i; j++) {
             int8_t siga = signature[j];
             int8_t sigb = signature[j + 1];
-            RTYPE ra = CREAL(eigVal[j]);
-            RTYPE rb = CREAL(eigVal[j + 1]);
+            RTYPE ra = eigVal[j];
+            RTYPE rb = eigVal[j + 1];
             int should_swap = 0;
 
             if (siga > 0 && sigb > 0) {
@@ -62,7 +62,7 @@ static void FN(bubble_sort_sig)(CTYPE *eigVal, int8_t *signature,
             /* siga > 0 && sigb < 0: already correct order */
 
             if (should_swap) {
-                CTYPE tmp_e = eigVal[j];
+                RTYPE tmp_e = eigVal[j];
                 eigVal[j] = eigVal[j + 1];
                 eigVal[j + 1] = tmp_e;
 
@@ -108,7 +108,7 @@ static void FN(bubble_sort_sig)(CTYPE *eigVal, int8_t *signature,
  */
 void FN(indefinite_rayleigh_ritz)(
     const uint64_t size, const uint64_t sizeSub,
-    CTYPE *restrict S, CTYPE *restrict Cx, CTYPE *restrict eigVal,
+    CTYPE *restrict S, CTYPE *restrict Cx, RTYPE *restrict eigVal,
     int8_t *restrict signature,
     CTYPE *restrict wrk1, CTYPE *restrict wrk2,
     CTYPE *restrict wrk3, CTYPE *restrict wrk4,
@@ -162,10 +162,10 @@ void FN(indefinite_rayleigh_ritz)(
     }
 #endif
 
-    /* 5. Compute eigenvalues: eigVal[i] = alpha[i] / beta[i] */
+    /* 5. Compute eigenvalues: eigVal[i] = Re(alpha[i] / beta[i]) */
     for (uint64_t i = 0; i < sizeSub; i++) {
 #ifdef CTYPE_IS_COMPLEX
-        eigVal[i] = alpha[i] / beta[i];
+        eigVal[i] = CREAL(alpha[i] / beta[i]);
 #else
         if (CABS(beta[i]) > (RTYPE)1e-30)
             eigVal[i] = alphar[i] / beta[i];

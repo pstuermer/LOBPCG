@@ -54,13 +54,11 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
 
     /* Compute ||B*V||_F for relative tolerance */
     RTYPE BV_norm = 0;
-    if (NULL == B) {
-        BV_norm = FN(nrm2)(m * n_v, V);
-    } else {
+    if (!B) BV_norm = FN(nrm2)(m * n_v, V);
+    if (B) {
         /* BV = B*V in wrk1 */
-        for (uint64_t j = 0; j < n_v; j++) {
+        for (uint64_t j = 0; j < n_v; j++)
             B->matvec(B, &V[j*m], &wrk1[j*m]);
-        }
         BV_norm = FN(nrm2)(m * n_v, wrk1);
     }
 

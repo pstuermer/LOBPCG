@@ -21,7 +21,7 @@
 #include <complex.h>
 #include "types.h"
 #include "lobpcg.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/blas_wrapper.h"
 #include "lobpcg/memory.h"
 
@@ -88,14 +88,14 @@ int test_ilobpcg_diagonal(void) {
     /* Allocate workspaces */
     alg->S = xcalloc(n * 3 * nev, sizeof(f64));
     alg->AS = xcalloc(n * 3 * nev, sizeof(f64));
-    alg->Cx = xcalloc(3 * nev * nev, sizeof(f64));
+    alg->Cx = xcalloc(3 * nev * 3 * nev, sizeof(f64));
     alg->Cp = xcalloc(3 * nev * 2 * nev, sizeof(f64));
     alg->eigVals = xcalloc(nev, sizeof(f64));
     alg->resNorm = xcalloc(nev, sizeof(f64));
     alg->signature = xcalloc(3 * nev, sizeof(int8_t));
     alg->wrk1 = xcalloc(n * 3 * nev, sizeof(f64));
     alg->wrk2 = xcalloc(n * 3 * nev, sizeof(f64));
-    alg->wrk3 = xcalloc(3 * nev * 3 * nev, sizeof(f64));
+    alg->wrk3 = xcalloc(n * 3 * nev, sizeof(f64));
     alg->wrk4 = xcalloc(n * 3 * nev, sizeof(f64));
 
     /* Run indefinite LOBPCG */

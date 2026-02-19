@@ -73,16 +73,16 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
 
     /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
     for (uint64_t i = 0; i < cols; i++) {
-        RTYPE gii = CABS(wrk1[i + i*cols]);
+        const RTYPE gii = CABS(wrk1[i + i*cols]);
         D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
     }
 
-    /* 3. Scale upper triangle: G̃ = D*G*D */
+    /* 3. Scale upper triangle: G = D*G*D */
     for (uint64_t j = 0; j < cols; j++)
         for (uint64_t i = 0; i <= j; i++)
             wrk1[i + j*cols] *= D[i] * D[j];
 
-    /* 4. Eigensolve G̃ = V Λ V^H (reads upper triangle) */
+    /* 4. Eigensolve G = V *lambda * V^H (reads upper triangle) */
     if (0 != FN(eig)(cols, wrk1, eigvals)) {
         safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
     }
@@ -94,7 +94,7 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
     RTYPE thresh = tau * maxeig;
 
     /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
-     *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) */
+     *    where D_final_jj = 1/sqrt(max(|lambda_j|, thresh)) */
     for (uint64_t j = 0; j < cols; j++) {
         RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
         for (uint64_t i = 0; i < cols; i++)

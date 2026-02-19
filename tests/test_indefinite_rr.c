@@ -20,7 +20,7 @@
 #include <complex.h>
 #include "types.h"
 #include "lobpcg.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/blas_wrapper.h"
 #include "lobpcg/memory.h"
 
@@ -214,7 +214,7 @@ int test_indef_rr_z(void) {
 
     c64 *S    = xcalloc(n * n, sizeof(c64));
     c64 *Cx   = xcalloc(n * n, sizeof(c64));
-    c64 *eigVal = xcalloc(n, sizeof(c64));
+    f64 *eigVal = xcalloc(n, sizeof(f64));
     int8_t *sig = xcalloc(n, sizeof(int8_t));
     c64 *wrk1 = xcalloc(n * n, sizeof(c64));
     c64 *wrk2 = xcalloc(n * n, sizeof(c64));
@@ -232,7 +232,7 @@ int test_indef_rr_z(void) {
     f64 max_err = 0;
     int sig_ok = 1;
     for (uint64_t i = 0; i < n; i++) {
-        f64 err = cabs(eigVal[i] - expected_eig[i]);
+        f64 err = fabs(eigVal[i] - expected_eig[i]);
         if (err > max_err) max_err = err;
         if (sig[i] != expected_sig[i]) sig_ok = 0;
     }
@@ -274,7 +274,7 @@ int test_indef_rr_c(void) {
 
     c32 *S    = xcalloc(n * n, sizeof(c32));
     c32 *Cx   = xcalloc(n * n, sizeof(c32));
-    c32 *eigVal = xcalloc(n, sizeof(c32));
+    f32 *eigVal = xcalloc(n, sizeof(f32));
     int8_t *sig = xcalloc(n, sizeof(int8_t));
     c32 *wrk1 = xcalloc(n * n, sizeof(c32));
     c32 *wrk2 = xcalloc(n * n, sizeof(c32));
@@ -292,7 +292,7 @@ int test_indef_rr_c(void) {
     f32 max_err = 0;
     int sig_ok = 1;
     for (uint64_t i = 0; i < n; i++) {
-        f32 err = cabsf(eigVal[i] - expected_eig[i]);
+        f32 err = fabsf(eigVal[i] - expected_eig[i]);
         if (err > max_err) max_err = err;
         if (sig[i] != expected_sig[i]) sig_ok = 0;
     }

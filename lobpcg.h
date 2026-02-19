@@ -2,16 +2,7 @@
 #define LOBPCG_H
 
 #include "types.h"
-
-// Forward declarations
-struct linop_ctx_t;
-struct lobpcg_t;
-
-// Forward declaration for linear operator types
-struct LinearOperator_s;
-struct LinearOperator_d;
-struct LinearOperator_c;
-struct LinearOperator_z;
+#include "lobpcg/memory.h"
 
 /* --------------------------------------------------------------------
  * LOBPCG state structure for each type
@@ -27,7 +18,7 @@ struct LinearOperator_z;
     ctype *restrict AS;                             \
     ctype *restrict BS;                             \
                                                     \
-    ctype *restrict eigVals;                        \
+    rtype *restrict eigVals;                        \
     rtype *restrict resNorm;                        \
     int8_t *restrict signature;                     \
                                                     \
@@ -97,7 +88,7 @@ TYPE_LIST(DECLARE_ILOBPCG)
                              ctype *restrict X,           \
                              ctype *restrict AX,          \
                              ctype *restrict R,           \
-                             ctype *restrict eigVal,      \
+                             rtype *restrict eigVal,      \
                              ctype *restrict wrk,         \
                              linop *A,                    \
                              linop *B);
@@ -122,7 +113,7 @@ TYPE_LIST(DECLARE_GET_RESIDUAL)
                                   const uint64_t sizeSub,  \
                                   const uint64_t nev,      \
                                   ctype *restrict W,       \
-                                  ctype *restrict eigVals, \
+                                  rtype *restrict eigVals, \
                                   rtype *restrict resNorm, \
                                   ctype *restrict wrk1,    \
                                   ctype *restrict wrk2,    \
@@ -383,7 +374,7 @@ TYPE_LIST(DECLARE_ORTHO_RMAT)
 #define DECLARE_INDEF_RR(prefix, ctype, rtype, linop)                \
   void prefix##_indefinite_rayleigh_ritz(                            \
       const uint64_t size, const uint64_t sizeSub,                   \
-      ctype *restrict S, ctype *restrict Cx, ctype *restrict eigVal, \
+      ctype *restrict S, ctype *restrict Cx, rtype *restrict eigVal, \
       int8_t *restrict signature,                                    \
       ctype *restrict wrk1, ctype *restrict wrk2,                   \
       ctype *restrict wrk3, ctype *restrict wrk4,                   \
@@ -450,5 +441,82 @@ TYPE_LIST(DECLARE_INDEF_RR_MOD)
                                 S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)   \
   rayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,              \
                          S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)
+
+/* --------------------------------------------------------------------
+ * lobpcg_alloc / lobpcg_free
+ * Allocate and free LOBPCG state structures
+ * ------------------------------------------------------------------ */
+#define DEFINE_LOBPCG_ALLOC(prefix, ctype, rtype, linop)                    \
+  static inline prefix##_lobpcg_t *prefix##_lobpcg_alloc(                   \
+      uint64_t n, uint64_t nev) {                                           \
+    prefix##_lobpcg_t *alg = xcalloc(1, sizeof(prefix##_lobpcg_t));         \
+    alg->size = n;                                                          \
+    alg->nev = nev;                                                         \
+    alg->sizeSub = nev;                                                     \
+    alg->S       = xcalloc(n * 3 * nev, sizeof(ctype));                     \
+    alg->Cx      = xcalloc(3 * nev * 3 * nev, sizeof(ctype));               \
+    alg->Cp      = xcalloc(3 * nev * 2 * nev, sizeof(ctype));               \
+    alg->eigVals = xcalloc(nev, sizeof(rtype));                             \
+    alg->resNorm = xcalloc(nev, sizeof(rtype));                             \
+    alg->wrk1    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
+    alg->wrk2    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
+    alg->wrk3    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
+    alg->wrk4    = xcalloc(n * 3 * nev, sizeof(ctype));                     \
+    return alg;                                                             \
+  }
+
+TYPE_LIST(DEFINE_LOBPCG_ALLOC)
+#undef DEFINE_LOBPCG_ALLOC
+
+#define lobpcg_alloc(n, nev, prefix) prefix##_lobpcg_alloc(n, nev)
+
+#define DEFINE_LOBPCG_FREE(prefix, ctype, rtype, linop)                     \
+  static inline void prefix##_lobpcg_free(prefix##_lobpcg_t **alg) {        \
+    if (!alg || !*alg) return;                                              \
+    safe_free((void**)&(*alg)->S);                                          \
+    safe_free((void**)&(*alg)->Cx);                                         \
+    safe_free((void**)&(*alg)->Cp);                                         \
+    safe_free((void**)&(*alg)->AS);                                         \
+    safe_free((void**)&(*alg)->BS);                                         \
+    safe_free((void**)&(*alg)->eigVals);                                    \
+    safe_free((void**)&(*alg)->resNorm);                                    \
+    safe_free((void**)&(*alg)->signature);                                  \
+    safe_free((void**)&(*alg)->wrk1);                                       \
+    safe_free((void**)&(*alg)->wrk2);                                       \
+    safe_free((void**)&(*alg)->wrk3);                                       \
+    safe_free((void**)&(*alg)->wrk4);                                       \
+    safe_free((void**)alg);                                                 \
+  }
+
+TYPE_LIST(DEFINE_LOBPCG_FREE)
+#undef DEFINE_LOBPCG_FREE
+
+#define lobpcg_free(alg) _Generic((*alg),   \
+    s_lobpcg_t *: s_lobpcg_free,            \
+    d_lobpcg_t *: d_lobpcg_free,            \
+    c_lobpcg_t *: c_lobpcg_free,            \
+    z_lobpcg_t *: z_lobpcg_free             \
+  )(alg)
+
+/* --------------------------------------------------------------------
+ * ilobpcg_alloc
+ * Allocate LOBPCG state with extra buffers for indefinite solver
+ * ------------------------------------------------------------------ */
+#define DEFINE_ILOBPCG_ALLOC(prefix, ctype, rtype, linop)                   \
+  static inline prefix##_lobpcg_t *prefix##_ilobpcg_alloc(                  \
+      uint64_t n, uint64_t nev) {                                           \
+    prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev);                 \
+    /* Reallocate Cp larger for indefinite: 3*nev × 2*nev */                \
+    safe_free((void**)&alg->Cp);                                            \
+    alg->Cp        = xcalloc(3 * nev * 2 * nev, sizeof(ctype));            \
+    alg->AS        = xcalloc(n * 3 * nev, sizeof(ctype));                   \
+    alg->signature = xcalloc(3 * nev, sizeof(int8_t));                      \
+    return alg;                                                             \
+  }
+
+TYPE_LIST(DEFINE_ILOBPCG_ALLOC)
+#undef DEFINE_ILOBPCG_ALLOC
+
+#define ilobpcg_alloc(n, nev, prefix) prefix##_ilobpcg_alloc(n, nev)
 
 #endif /* LOBPCG_H */

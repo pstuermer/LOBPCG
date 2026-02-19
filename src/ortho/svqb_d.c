@@ -6,7 +6,7 @@
 #include "../../include/lobpcg/types.h"
 #include "../../lobpcg.h"
 #include "../../include/lobpcg/blas_wrapper.h"
-#include "../../linop.h"
+#include "lobpcg/linop.h"
 
 #define PREFIX d
 #define CTYPE f64

@@ -1,23 +1,8 @@
 #ifndef LINOP_H
 #define LINOP_H
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <complex.h>
-#include <stdint.h>
-//#include <cblas.h>
-
+#include "lobpcg/types.h"
 #include "lobpcg/memory.h"
-
-typedef float f32;
-typedef double f64;
-typedef float complex c32;
-typedef double complex c64;
-
-// forward declare
-//struct linop_ctx_t;
 
 typedef struct {
   void *data;
@@ -54,9 +39,11 @@ typedef struct {
     return op;								\
   }									\
 									\
-  static inline void linop_destroy_##suffix(LinearOperator_##suffix##_t* op) {	\
-    if (op->cleanup && op->ctx) op->cleanup(op->ctx);			\
-    free( op );								\
+  static inline void linop_destroy_##suffix(LinearOperator_##suffix##_t **op) { \
+    if (op && *op) {							\
+      if ((*op)->cleanup && (*op)->ctx) (*op)->cleanup((*op)->ctx);	\
+      safe_free((void**)op);						\
+    }									\
   }									\
 									\
   static inline void linop_apply_##suffix(const LinearOperator_##suffix##_t *op,	\
@@ -66,7 +53,6 @@ typedef struct {
   }
 
 // Create instances for each type
-// maybe later use as conditional compliation
 DEFINE_LINEAR_OPERATOR(f32, s)
 DEFINE_LINEAR_OPERATOR(f64, d)
 DEFINE_LINEAR_OPERATOR(c32, c)
@@ -88,10 +74,10 @@ DEFINE_LINEAR_OPERATOR(c64, z)
 				       )(op, x, y)
 
 #define linop_destroy(op) _Generic((op), \
-    LinearOperator_s_t*: linop_destroy_s, \
-    LinearOperator_d_t*: linop_destroy_d, \
-    LinearOperator_c_t*: linop_destroy_c, \
-    LinearOperator_z_t*: linop_destroy_z \
+    LinearOperator_s_t**: linop_destroy_s, \
+    LinearOperator_d_t**: linop_destroy_d, \
+    LinearOperator_c_t**: linop_destroy_c, \
+    LinearOperator_z_t**: linop_destroy_z \
 				   )(op)
 
 #endif // LINOP_H

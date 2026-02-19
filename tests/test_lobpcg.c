@@ -9,7 +9,7 @@
 #include <complex.h>
 #include "types.h"
 #include "lobpcg.h"
-#include "linop.h"
+#include "lobpcg/linop.h"
 #include "lobpcg/blas_wrapper.h"
 #include "lobpcg/memory.h"
 
@@ -76,13 +76,13 @@ int test_lobpcg_laplacian(void) {
 
     /* Allocate workspaces */
     alg->S = xcalloc(n * 3 * nev, sizeof(f64));  /* [X, P, W] */
-    alg->Cx = xcalloc(3 * nev * nev, sizeof(f64));
-    alg->Cp = xcalloc(3 * nev * nev, sizeof(f64));
+    alg->Cx = xcalloc(3 * nev * 3 * nev, sizeof(f64));
+    alg->Cp = xcalloc(3 * nev * 2 * nev, sizeof(f64));
     alg->eigVals = xcalloc(nev, sizeof(f64));
     alg->resNorm = xcalloc(nev, sizeof(f64));
     alg->wrk1 = xcalloc(n * 3 * nev, sizeof(f64));
     alg->wrk2 = xcalloc(n * 3 * nev, sizeof(f64));
-    alg->wrk3 = xcalloc(3 * nev * 3 * nev, sizeof(f64));
+    alg->wrk3 = xcalloc(n * 3 * nev, sizeof(f64));
     alg->wrk4 = xcalloc(n * 3 * nev, sizeof(f64));
 
     /* Initialize with random guess (S is zero, will be filled in lobpcg) */

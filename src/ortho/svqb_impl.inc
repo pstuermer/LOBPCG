@@ -52,66 +52,66 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
                   const char drop, CTYPE *restrict U,
                   CTYPE *restrict wrk1, CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                   LINOP *B) {
-    if (0 == cols) return 0;
-    (void)drop;  /* drop='y' not implemented */
+  if (0 == cols) return 0;
+  (void)drop;  /* drop='y' not implemented */
 
-    RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
-    RTYPE *D = xcalloc(cols, sizeof(RTYPE));
+  RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
+  RTYPE *D = xcalloc(cols, sizeof(RTYPE));
 
-    /* 1. Gram matrix G = U^H*B*U in wrk1 (upper triangle) */
-    memset(wrk1, 0, cols*cols*sizeof(CTYPE));
-    if (NULL == B) {
+  /* 1. Gram matrix G = U^H*B*U in wrk1 (upper triangle) */
+  memset(wrk1, 0, cols*cols*sizeof(CTYPE));
+  if (NULL == B) {
 #ifdef CTYPE_IS_COMPLEX
-        FN(herk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
+    FN(herk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
 #else
-        FN(syrk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
+    FN(syrk)(rows, cols, (RTYPE)1, U, (RTYPE)0, wrk1);
 #endif
-    } else {
-        for (uint64_t j = 0; j < cols; j++)
-            B->matvec(B, &U[j*rows], &wrk2[j*rows]);
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#else
-        FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#endif
-    }
-
-    /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
-    for (uint64_t i = 0; i < cols; i++) {
-        RTYPE gii = CABS(wrk1[i + i*cols]);
-        D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
-    }
-
-    /* 3. Scale upper triangle: G̃ = D*G*D */
+  } else {
     for (uint64_t j = 0; j < cols; j++)
-        for (uint64_t i = 0; i <= j; i++)
-            wrk1[i + j*cols] *= D[i] * D[j];
+      B->matvec(B, &U[j*rows], &wrk2[j*rows]);
+#ifdef CTYPE_IS_COMPLEX
+    FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
+#else
+    FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
+#endif
+  }
 
-    /* 4. Eigensolve G̃ = V Λ V^H (reads upper triangle) */
-    if (0 != FN(eig)(cols, wrk1, eigvals)) {
-        safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
-    }
+  /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
+  for (uint64_t i = 0; i < cols; i++) {
+    RTYPE gii = CABS(wrk1[i + i*cols]);
+    D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
+  }
 
-    /* 5. Threshold */
-    RTYPE maxeig = 0;
+  /* 3. Scale upper triangle: G̃ = D*G*D */
+  for (uint64_t j = 0; j < cols; j++)
+    for (uint64_t i = 0; i <= j; i++)
+      wrk1[i + j*cols] *= D[i] * D[j];
+
+  /* 4. Eigensolve G̃ = V Λ V^H (reads upper triangle) */
+  if (0 != FN(eig)(cols, wrk1, eigvals)) {
+    safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
+  }
+
+  /* 5. Threshold */
+  RTYPE maxeig = 0;
+  for (uint64_t i = 0; i < cols; i++)
+    if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
+  RTYPE thresh = tau * maxeig;
+
+  /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
+   *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) */
+  for (uint64_t j = 0; j < cols; j++) {
+    RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
     for (uint64_t i = 0; i < cols; i++)
-        if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
-    RTYPE thresh = tau * maxeig;
+      wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
+  }
 
-    /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
-     *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) */
-    for (uint64_t j = 0; j < cols; j++) {
-        RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
-        for (uint64_t i = 0; i < cols; i++)
-            wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
-    }
+  /* U_new = U * T */
+  FN(gemm_nn)(rows, cols, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
+  memcpy(U, wrk3, rows*cols*sizeof(CTYPE));
 
-    /* U_new = U * T */
-    FN(gemm_nn)(rows, cols, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
-    memcpy(U, wrk3, rows*cols*sizeof(CTYPE));
-
-    safe_free((void**)&eigvals); safe_free((void**)&D);
-    return cols;
+  safe_free((void**)&eigvals); safe_free((void**)&D);
+  return cols;
 }
 
 #undef CONCAT2
