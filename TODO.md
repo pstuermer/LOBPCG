@@ -170,6 +170,8 @@
   - `safe_free(void**)` - properly nullifying free (fixes reference bug)
 - [x] Remove memory functions from `linop.h` (lines 25-39)
 - [x] Implement `lobpcg_alloc()`/`lobpcg_free()`/`ilobpcg_alloc()` as inline X-macros in lobpcg.h
+- [x] Fix lobpcg_alloc: removed duplicate `sizeSub = nev` overwrite, fixed Cx/Cp/wrk buffer sizes for small problems (need `(3*sizeSub)^2` not `3*sizeSub^2`)
+- [x] Add parameter validation in lobpcg: `nev <= sizeSub` and `3*sizeSub <= size`
 - [ ] Implement `lobpcg_setup()` - init params, allocate X,W,P,S,Cx,Cp
 - [ ] Support optional `cache_products` flag for AX,AW,AP
 - [ ] (Future) Portability: Add aligned_alloc fallbacks
@@ -220,7 +222,7 @@
 - [ ] Support `cache_products` option for implicit product update
 - [x] Create instantiation files
 
-**Verify:** `test_lobpcg.c` - 1D Laplacian eigenvalues match `k^2 * pi^2 / L^2` ✓ PASSED
+**Verify:** `test_lobpcg.c` - 5 tests: d/z 4x4 dense (nev=1), d 6x6 dense (nev=1,2), Laplacian n=100 nev=3 sizeSub=5 ✓ PASSED
 
 ### K-based LOBPCG (klobpcg)
 - [ ] Create `src/core/klobpcg_impl.inc`

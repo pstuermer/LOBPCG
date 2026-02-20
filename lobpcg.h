@@ -543,16 +543,19 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
     alg->size = n;							\
     alg->sizeSub = sizeSub;						\
     alg->nev = nev;							\
-    alg->sizeSub = nev;							\
-    alg->S       = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
-    alg->Cx      = xcalloc(3 * sizeSub * sizeSub, sizeof(ctype));	\
-    alg->Cp      = xcalloc(3 * sizeSub * sizeSub, sizeof(ctype));	\
+    uint64_t full_ = 3 * sizeSub;					\
+    uint64_t sq_   = full_ * full_;					\
+    uint64_t rect_ = n * full_;						\
+    uint64_t maxb_ = (sq_ > rect_) ? sq_ : rect_;			\
+    alg->S       = xcalloc(n * full_, sizeof(ctype));			\
+    alg->Cx      = xcalloc(sq_, sizeof(ctype));				\
+    alg->Cp      = xcalloc(sq_, sizeof(ctype));				\
     alg->eigVals = xcalloc(sizeSub, sizeof(rtype));			\
     alg->resNorm = xcalloc(sizeSub, sizeof(rtype));			\
-    alg->wrk1    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
-    alg->wrk2    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
-    alg->wrk3    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
-    alg->wrk4    = xcalloc(n * 3 * sizeSub, sizeof(ctype));		\
+    alg->wrk1    = xcalloc(maxb_, sizeof(ctype));			\
+    alg->wrk2    = xcalloc(maxb_, sizeof(ctype));			\
+    alg->wrk3    = xcalloc(maxb_, sizeof(ctype));			\
+    alg->wrk4    = xcalloc(maxb_, sizeof(ctype));			\
     return alg;								\
   }
 

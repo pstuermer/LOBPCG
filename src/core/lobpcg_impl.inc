@@ -61,6 +61,19 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     const uint64_t size = alg->size;
     const uint64_t nev = alg->nev;
     const uint64_t sizeSub = alg->sizeSub;
+
+    /* Parameter validation */
+    if (nev > sizeSub) {
+        fprintf(stderr, "lobpcg: nev (%lu) > sizeSub (%lu)\n",
+                (unsigned long)nev, (unsigned long)sizeSub);
+        return;
+    }
+    if (3 * sizeSub > size) {
+        fprintf(stderr, "lobpcg: 3*sizeSub (%lu) > size (%lu)\n",
+                (unsigned long)(3 * sizeSub), (unsigned long)size);
+        return;
+    }
+
     const RTYPE eps_ortho = 1e-12;
     const RTYPE eps_drop = 1e-12;
 
