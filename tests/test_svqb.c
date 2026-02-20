@@ -23,7 +23,7 @@ static int tests_failed = 0;
 
 #define TEST(name) static void test_##name(void)
 #define RUN(name) do { \
-    printf("  %-40s ", #name); \
+    printf("  %-50s ", #name); \
     test_##name(); \
     printf("[PASS]\n"); \
     tests_passed++; \
@@ -121,7 +121,7 @@ TEST(d_svqb_identity) {
     ASSERT(ncols == n);
 
     f64 err = ortho_error_d(m, n, U);
-    printf("before = %.2e, after = %.2e, tol = %.2e ", err_before, err, TOL_F64 * n);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -143,7 +143,7 @@ TEST(d_svqb_larger) {
     d_svqb(m, n, 1e-14, 'n', U, wrk1, wrk2, wrk3, NULL);
 
     f64 err = ortho_error_d(m, n, U);
-    printf("before = %.2e, after = %.2e ", err_before, err);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -170,7 +170,7 @@ TEST(z_svqb_identity) {
     ASSERT(ncols == n);
 
     f64 err = ortho_error_z(m, n, U);
-    printf("before = %.2e, after = %.2e ", err_before, err);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -192,7 +192,7 @@ TEST(z_svqb_larger) {
     z_svqb(m, n, 1e-14, 'n', U, wrk1, wrk2, wrk3, NULL);
 
     f64 err = ortho_error_z(m, n, U);
-    printf("before = %.2e, after = %.2e ", err_before, err);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
     ASSERT(err < TOL_F64 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
@@ -218,7 +218,7 @@ TEST(s_svqb_identity) {
     s_svqb(m, n, 1e-6f, 'n', U, wrk1, wrk2, wrk3, NULL);
 
     f32 err = ortho_error_s(m, n, U);
-    printf("before = %.2e, after = %.2e ", (double)err_before, (double)err);
+    printf("pre: norm=%.2e  post: norm=%.2e ", (double)err_before, (double)err);
     ASSERT(err < TOL_F32 * n);
 
     safe_free((void**)&U); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);

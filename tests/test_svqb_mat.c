@@ -21,6 +21,23 @@
 
 #define TOL_F64 1e-12
 
+static int tests_passed = 0, tests_failed = 0;
+
+#define TEST(name) static void test_##name(void)
+#define RUN(name) do { \
+    printf("  %-50s ", #name); \
+    test_##name(); \
+    printf("[PASS]\n"); \
+    tests_passed++; \
+} while(0)
+#define ASSERT(cond) do { \
+    if (!(cond)) { \
+        printf("[FAIL] line %d: %s\n", __LINE__, #cond); \
+        tests_failed++; \
+        return; \
+    } \
+} while(0)
+
 /**
  * Compute ||U^H*mat*U - I_sig||_F where I_sig has |diag| = 1
  * For indefinite metric, the Gram matrix U^H*mat*U should satisfy
@@ -84,7 +101,35 @@ static void make_indef_diag_z(uint64_t m, uint64_t n_pos, c64 *mat) {
  * Tests
  * ==================================================================== */
 
-int test_svqb_mat_d(void) {
+TEST(d_svqb_mat_identity) {
+    const uint64_t m = 100, n = 10;
+
+    f64 *U = xcalloc(m * n, sizeof(f64));
+    f64 *mat = xcalloc(m * m, sizeof(f64));
+    f64 *wrk1 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk2 = xcalloc(m * n, sizeof(f64));
+    f64 *wrk3 = xcalloc(m * n, sizeof(f64));
+
+    /* mat = I */
+    for (uint64_t i = 0; i < m; i++) mat[i + i*m] = 1.0;
+
+    for (uint64_t i = 0; i < m * n; i++)
+        U[i] = (f64)rand() / RAND_MAX - 0.5;
+
+    f64 err_before = ortho_error_mat_d(m, n, U, mat);
+    ASSERT(err_before > 1.0);
+
+    d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
+
+    f64 err = ortho_error_mat_d(m, n, U, mat);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
+    ASSERT(err < TOL_F64 * n);
+
+    safe_free((void**)&U); safe_free((void**)&mat);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
+TEST(d_svqb_mat_indef) {
     const uint64_t m = 100, n = 10;
     const uint64_t n_pos = 60;  /* 60 positive, 40 negative */
 
@@ -96,27 +141,24 @@ int test_svqb_mat_d(void) {
 
     make_indef_diag_d(m, n_pos, mat);
 
-    /* Fill U with random values */
     for (uint64_t i = 0; i < m * n; i++)
         U[i] = (f64)rand() / RAND_MAX - 0.5;
 
     f64 err_before = ortho_error_mat_d(m, n, U, mat);
-    printf("  pre-svqb ||U^H*mat*U - I_sig||_F = %.3e (should be > 1)\n", err_before);
-    if (err_before <= 1.0) { printf("  FAIL: input already orthogonal\n"); return 0; }
+    ASSERT(err_before > 1.0);
 
     uint64_t ncols = d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
-    printf("  Returned %lu columns (expected %lu)\n",
-           (unsigned long)ncols, (unsigned long)n);
+    ASSERT(ncols == n);
 
     f64 err = ortho_error_mat_d(m, n, U, mat);
-    printf("  ||U^H*mat*U - I_sig||_F = %.3e (tol = %.3e)\n", err, TOL_F64 * n);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
+    ASSERT(err < TOL_F64 * n);
 
-    int pass = (ncols == n) && (err < TOL_F64 * n);
-    safe_free((void**)&U); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    return pass;
+    safe_free((void**)&U); safe_free((void**)&mat);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
-int test_svqb_mat_z(void) {
+TEST(z_svqb_mat_indef) {
     const uint64_t m = 100, n = 10;
     const uint64_t n_pos = 60;
 
@@ -132,80 +174,27 @@ int test_svqb_mat_z(void) {
         U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
 
     f64 err_before = ortho_error_mat_z(m, n, U, mat);
-    printf("  pre-svqb ||U^H*mat*U - I_sig||_F = %.3e (should be > 1)\n", err_before);
-    if (err_before <= 1.0) { printf("  FAIL: input already orthogonal\n"); return 0; }
+    ASSERT(err_before > 1.0);
 
     uint64_t ncols = z_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
-    printf("  Returned %lu columns (expected %lu)\n",
-           (unsigned long)ncols, (unsigned long)n);
+    ASSERT(ncols == n);
 
     f64 err = ortho_error_mat_z(m, n, U, mat);
-    printf("  ||U^H*mat*U - I_sig||_F = %.3e (tol = %.3e)\n", err, TOL_F64 * n);
+    printf("pre: norm=%.2e  post: norm=%.2e ", err_before, err);
+    ASSERT(err < TOL_F64 * n);
 
-    int pass = (ncols == n) && (err < TOL_F64 * n);
-    safe_free((void**)&U); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    return pass;
-}
-
-/* Also test with positive-definite mat = I to ensure it still works */
-int test_svqb_mat_identity_d(void) {
-    const uint64_t m = 100, n = 10;
-
-    f64 *U = xcalloc(m * n, sizeof(f64));
-    f64 *mat = xcalloc(m * m, sizeof(f64));
-    f64 *wrk1 = xcalloc(m * n, sizeof(f64));
-    f64 *wrk2 = xcalloc(m * n, sizeof(f64));
-    f64 *wrk3 = xcalloc(m * n, sizeof(f64));
-
-    /* mat = I */
-    for (uint64_t i = 0; i < m; i++) mat[i + i*m] = 1.0;
-
-    for (uint64_t i = 0; i < m * n; i++)
-        U[i] = (f64)rand() / RAND_MAX - 0.5;
-
-    /* Pre-svqb check: random input should NOT be orthogonal */
-    f64 *G = xcalloc(n * n, sizeof(f64));
-    d_gemm_tn(n, n, m, 1.0, U, U, 0.0, G);
-    for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0;
-    f64 err_before = d_nrm2(n * n, G);
-    printf("  pre-svqb ||U^T*U - I||_F = %.3e (should be > 1)\n", err_before);
-    if (err_before <= 1.0) { safe_free((void**)&G); printf("  FAIL: input already orthogonal\n"); return 0; }
-
-    d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
-
-    /* Check standard orthonormality: ||U^T*U - I||_F */
-    d_gemm_tn(n, n, m, 1.0, U, U, 0.0, G);
-    for (uint64_t i = 0; i < n; i++) G[i + i*n] -= 1.0;
-    f64 err = d_nrm2(n * n, G);
-    printf("  ||U^T*U - I||_F = %.3e (tol = %.3e)\n", err, TOL_F64 * n);
-
-    int pass = (err < TOL_F64 * n);
-    safe_free((void**)&U); safe_free((void**)&mat); safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3); safe_free((void**)&G);
-    return pass;
+    safe_free((void**)&U); safe_free((void**)&mat);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 int main(void) {
     srand((unsigned)time(NULL));
-
-    printf("Testing svqb_mat...\n");
-
-    printf("\nTest 1: svqb_mat_d with identity matrix\n");
-    int t1 = test_svqb_mat_identity_d();
-    printf("  Result: %s\n", t1 ? "PASS" : "FAIL");
-
-    printf("\nTest 2: svqb_mat_d with indefinite diagonal matrix\n");
-    int t2 = test_svqb_mat_d();
-    printf("  Result: %s\n", t2 ? "PASS" : "FAIL");
-
-    printf("\nTest 3: svqb_mat_z with indefinite diagonal matrix\n");
-    int t3 = test_svqb_mat_z();
-    printf("  Result: %s\n", t3 ? "PASS" : "FAIL");
-
-    if (t1 && t2 && t3) {
-        printf("\nAll tests PASSED\n");
-        return 0;
-    } else {
-        printf("\nSome tests FAILED\n");
-        return 1;
-    }
+    printf("svqb_mat tests:\n");
+    RUN(d_svqb_mat_identity);
+    RUN(d_svqb_mat_indef);
+    RUN(z_svqb_mat_indef);
+    printf("\n========================================\n");
+    printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
+    printf("========================================\n");
+    return tests_failed > 0 ? 1 : 0;
 }
