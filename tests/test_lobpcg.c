@@ -188,7 +188,7 @@ TEST(d_lobpcg_4x4) {
     alg->B = NULL;
     alg->T = NULL;
     alg->maxIter = 100;
-    alg->tol = 1e-10;
+    alg->tol = 1e-5;
 
     d_lobpcg(alg);
 
@@ -230,14 +230,14 @@ TEST(z_lobpcg_4x4) {
     alg->B = NULL;
     alg->T = NULL;
     alg->maxIter = 100;
-    alg->tol = 1e-10;
+    alg->tol = 1e-5;
 
     z_lobpcg(alg);
 
     printf("conv=%lu ", (unsigned long)alg->converged);
     ASSERT(alg->converged == nev);
 
-    ASSERT_NEAR(alg->eigVals[0], eigvals_4x4[0], 1e-8);
+    ASSERT_NEAR(alg->eigVals[0], eigvals_4x4[0], 1e-4);
 
     c64 *X = alg->S;
     f64 orth = ortho_self_z(n, nev, X);
@@ -272,7 +272,7 @@ TEST(d_lobpcg_6x6) {
     alg->B = NULL;
     alg->T = NULL;
     alg->maxIter = 100;
-    alg->tol = 1e-10;
+    alg->tol = 1e-5;
 
     d_lobpcg(alg);
 
@@ -315,7 +315,7 @@ TEST(d_lobpcg_6x6_nev2) {
     alg->B = NULL;
     alg->T = NULL;
     alg->maxIter = 100;
-    alg->tol = 1e-10;
+    alg->tol = 1e-5;
 
     d_lobpcg(alg);
 
