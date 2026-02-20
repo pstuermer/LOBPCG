@@ -68,9 +68,7 @@
 - [x] Add declarations to `lobpcg.h`
 - [x] Create `tests/test_ortho_randomize.c`
 
-**Verify:** `||V^H*B*U||_F < 1e-14` and `||U^H*B*U - I||_F < 1e-14`
-**Reference:** `lobpcg.c:752-860` (zortho_randomize)
-**Note:** Previously called "ortho_drop" in TODO - renamed for consistency with reference
+**Verify:** `||V^H*B*U||_F < 1e-14` and `||U^H*B*U - I||_F < 1e-14` ✓ PASSED (B=NULL and B=2*I branches)
 
 ---
 
@@ -99,7 +97,7 @@
 - [x] Add declarations to `lobpcg.h`
 - [x] Create `tests/test_ortho_randomized_mat.c`
 
-**Verify:** `||V^H*mat*U||_F < tol` ✓ PASSED
+**Verify:** `||V^H*mat*U||_F < tol` ✓ PASSED; fixed wrk3 underallocation (was max_n*max_n, needs m*max_n)
 **Reference:** `ilobpcg.c:128-183` (ortho_randomized_mat)
 **Note:** Was MISSING from original TODO
 
@@ -114,7 +112,7 @@
 - [x] Add declaration to `lobpcg.h`
 - [x] Create `tests/test_ortho_indefinite.c`
 
-**Verify:** `test_ortho_indefinite.c` ✓ PASSED
+**Verify:** `test_ortho_indefinite.c` ✓ PASSED (4 indefinite tests + 2 B=NULL tests)
 **Reference:** `ilobpcg.c:185-350` (zortho_randomize_indefinite)
 
 ---
@@ -134,7 +132,7 @@
 - [x] Remove unnecessary fill-lower loops (herk→potrf→eig all use upper triangle)
 - [x] Change eigVal parameter from CTYPE* to RTYPE* (eigenvalues are always real)
 
-**Verify:** `test_rayleigh_ritz.c` - eigenvalues of diagonal matrix are correct ✓ PASSED
+**Verify:** `test_rayleigh_ritz.c` - 8 tests: 4x4/6x6 dense matrices, d/z types, standard/modified/ortho/chol branches ✓ PASSED
 
 ### Modified Rayleigh-Ritz
 - [x] Create `src/rayleigh/rayleigh_ritz_modified_impl.inc`
@@ -145,7 +143,7 @@
 - [x] Add useOrtho==1 branch: direct eigensolve on S^H*A*S (no Gram/Cholesky/D_inv_R)
 - [x] Fix Cp QR dimensions: store Z2 (not Z2^T), QR on tall matrix, fix K in GEMM (both branches)
 
-**Verify:** Reconstruction test - `X_new = S * Cx` gives correct result ✓ PASSED
+**Verify:** Covered by standard RR tests (ortho + chol branches, mult=2 and mult=3) ✓ PASSED
 
 ### Indefinite Rayleigh-Ritz
 - [x] Create `src/rayleigh/indefinite_rr_impl.inc`

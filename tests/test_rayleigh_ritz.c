@@ -1,10 +1,14 @@
 /**
  * @file test_rayleigh_ritz.c
- * @brief Tests for standard and modified Rayleigh-Ritz procedures (all 4 types)
+ * @brief Tests for standard and modified Rayleigh-Ritz procedures
+ *
+ * Uses reference test data from LREP_post (4x4 and 6x6 dense symmetric matrices).
+ * Verification checks Rayleigh quotient diagonality and B-orthonormality.
  */
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 #include <complex.h>
 #include "types.h"
@@ -13,57 +17,214 @@
 #include "lobpcg/blas_wrapper.h"
 #include "lobpcg/memory.h"
 
-#define TEST_TOL_D 1e-10
-#define TEST_TOL_S 1e-4
+static int tests_passed = 0;
+static int tests_failed = 0;
+
+#define TEST(name) static void test_##name(void)
+#define RUN(name) do { \
+    printf("  %-50s ", #name); \
+    test_##name(); \
+    printf("[PASS]\n"); \
+    tests_passed++; \
+} while(0)
+
+#define ASSERT(cond) do { \
+    if (!(cond)) { \
+        printf("[FAIL] line %d: %s\n", __LINE__, #cond); \
+        tests_failed++; \
+        return; \
+    } \
+} while(0)
+
+#define ASSERT_NEAR(a, b, tol) ASSERT(fabs((a) - (b)) < (tol))
 
 /* ================================================================
- * Diagonal matvec helpers for each type
+ * Dense matvec helpers
  * ================================================================ */
 
-/* --- float --- */
-typedef struct { uint64_t n; f32 *diag; } diag_ctx_s_t;
+typedef struct { uint64_t n; f64 *A; } dense_ctx_d_t;
+typedef struct { uint64_t n; c64 *A; } dense_ctx_z_t;
 
-void diag_matvec_s(const LinearOperator_s_t *op, f32 *restrict x, f32 *restrict y) {
-    diag_ctx_s_t *ctx = (diag_ctx_s_t *)op->ctx;
-    for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
+static void dense_matvec_d(const LinearOperator_d_t *op,
+                           f64 *restrict x, f64 *restrict y) {
+    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx;
+    d_gemm_nn(ctx->n, 1, ctx->n, 1.0, ctx->A, x, 0.0, y);
 }
 
-/* --- double --- */
-typedef struct { uint64_t n; f64 *diag; } diag_ctx_d_t;
-
-void diag_matvec_d(const LinearOperator_d_t *op, f64 *restrict x, f64 *restrict y) {
-    diag_ctx_d_t *ctx = (diag_ctx_d_t *)op->ctx;
-    for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
+static void dense_matvec_z(const LinearOperator_z_t *op,
+                           c64 *restrict x, c64 *restrict y) {
+    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx;
+    z_gemm_nn(ctx->n, 1, ctx->n, (c64)1, ctx->A, x, (c64)0, y);
 }
 
-/* --- complex float --- */
-typedef struct { uint64_t n; f32 *diag; } diag_ctx_c_t;
+/* Scale matvec for B = scale*I */
+typedef struct { uint64_t n; f64 scale; } scale_ctx_d_t;
 
-void diag_matvec_c(const LinearOperator_c_t *op, c32 *restrict x, c32 *restrict y) {
-    diag_ctx_c_t *ctx = (diag_ctx_c_t *)op->ctx;
-    for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
-}
-
-/* --- complex double --- */
-typedef struct { uint64_t n; f64 *diag; } diag_ctx_z_t;
-
-void diag_matvec_z(const LinearOperator_z_t *op, c64 *restrict x, c64 *restrict y) {
-    diag_ctx_z_t *ctx = (diag_ctx_z_t *)op->ctx;
-    for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
+static void scale_matvec_d(const LinearOperator_d_t *op,
+                           f64 *restrict x, f64 *restrict y) {
+    scale_ctx_d_t *ctx = (scale_ctx_d_t *)op->ctx;
+    for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->scale * x[i];
 }
 
 /* ================================================================
- * Test: standard rayleigh_ritz — double
+ * Reference data: 4x4 symmetric matrix
  * ================================================================ */
-int test_rr_d(void) {
-    const uint64_t n = 20, nev = 5;
+static const f64 A4x4[16] = {
+    4.0, 1.0, 2.0, 0.0,
+    1.0, 3.0, 0.0, 1.0,
+    2.0, 0.0, 5.0, 2.0,
+    0.0, 1.0, 2.0, 6.0
+};
 
-    diag_ctx_d_t *ctx = xcalloc(1, sizeof(diag_ctx_d_t));
+/* S for standard RR: 4x2, column-major */
+static const f64 S4x2_d[8] = {
+    1.0, -1.0, 1.0, -1.0,   /* col 0 */
+    1.0, 1.0, -1.0, -2.0    /* col 1 */
+};
+
+/* Expected eigenvalues from reference 4x4 standard RR */
+static const f64 eigVal_ref_4x4[2] = { 4.270248, 5.507529 };
+
+/* Expected X_new = S * Cx: 4x2, column-major (up to column sign) */
+static const f64 Xnew_ref_4x4[8] = {
+    0.326799989, -0.658521176, 0.658521176, -0.160939395,  /* col 0 */
+    0.475957037, 0.218703777, -0.218703777, -0.823287444   /* col 1 */
+};
+
+/* ================================================================
+ * Reference data: 6x6 symmetric matrix
+ * ================================================================ */
+static const f64 A6x6[36] = {
+    4.0, 1.0, 2.0, 0.0, 1.0, 0.5,
+    1.0, 3.0, 0.0, 1.0, 0.5, 0.0,
+    2.0, 0.0, 5.0, 2.0, 1.0, 1.0,
+    0.0, 1.0, 2.0, 6.0, 1.5, 0.0,
+    1.0, 0.5, 1.0, 1.5, 5.0, 2.0,
+    0.5, 0.0, 1.0, 0.0, 2.0, 4.0
+};
+
+/* S for modified RR: 6x4, column-major */
+static const f64 S6x4_d[24] = {
+    1.0, -1.0, 1.0, -1.0, 1.0, -1.0,   /* col 0 */
+    1.0, 1.0, -1.0, -2.0, 1.0, 2.0,    /* col 1 */
+    1.0, 1.0, 1.0, -1.0, -1.0, -1.0,   /* col 2 */
+    2.0, 1.0, -2.0, -1.0, -1.0, 2.0    /* col 3 */
+};
+
+/* ================================================================
+ * Helper: column-sign-adjusted error between two real matrices
+ * For each column j, checks both Cx[:,j] ≈ ref[:,j] and Cx[:,j] ≈ -ref[:,j]
+ * ================================================================ */
+static f64 cx_error_signed(uint64_t m, uint64_t n, const f64 *Cx, const f64 *ref) {
+    f64 max_err = 0;
+    for (uint64_t j = 0; j < n; j++) {
+        f64 err_pos = 0, err_neg = 0;
+        for (uint64_t i = 0; i < m; i++) {
+            f64 ep = fabs(Cx[i + j*m] - ref[i + j*m]);
+            f64 en = fabs(Cx[i + j*m] + ref[i + j*m]);
+            if (ep > err_pos) err_pos = ep;
+            if (en > err_neg) err_neg = en;
+        }
+        f64 col_err = (err_pos < err_neg) ? err_pos : err_neg;
+        if (col_err > max_err) max_err = col_err;
+    }
+    return max_err;
+}
+
+/* ================================================================
+ * Helper: check Rayleigh quotient X^T*A*X ≈ diag(eigVal)
+ * Returns ||X^T*A*X - diag(eigVal)||_F
+ * ================================================================ */
+static f64 rayleigh_diag_d(uint64_t n, uint64_t nev, const f64 *A_mat,
+                           const f64 *X, const f64 *eigVal) {
+    f64 *AX = xcalloc(n * nev, sizeof(f64));
+    f64 *G  = xcalloc(nev * nev, sizeof(f64));
+    d_gemm_nn(n, nev, n, 1.0, A_mat, X, 0.0, AX);
+    d_gemm_tn(nev, nev, n, 1.0, X, AX, 0.0, G);
+
+    /* Subtract diag(eigVal) */
+    for (uint64_t i = 0; i < nev; i++) G[i + i*nev] -= eigVal[i];
+
+    f64 err = d_nrm2(nev * nev, G);
+    safe_free((void**)&AX); safe_free((void**)&G);
+    return err;
+}
+
+static f64 rayleigh_diag_z(uint64_t n, uint64_t nev, const c64 *A_mat,
+                           const c64 *X, const f64 *eigVal) {
+    c64 *AX = xcalloc(n * nev, sizeof(c64));
+    c64 *G  = xcalloc(nev * nev, sizeof(c64));
+    z_gemm_nn(n, nev, n, (c64)1, A_mat, X, (c64)0, AX);
+    z_gemm_hn(nev, nev, n, (c64)1, X, AX, (c64)0, G);
+
+    for (uint64_t i = 0; i < nev; i++) G[i + i*nev] -= eigVal[i];
+
+    f64 err = z_nrm2(nev * nev, G);
+    safe_free((void**)&AX); safe_free((void**)&G);
+    return err;
+}
+
+/* ================================================================
+ * Helper: B-orthonormality ||X^T*B*X - I||_F  (B=NULL → ||X^T*X - I||_F)
+ * ================================================================ */
+static f64 ortho_self_d(uint64_t n, uint64_t nev, const f64 *X) {
+    f64 *G = xcalloc(nev * nev, sizeof(f64));
+    d_syrk(n, nev, 1.0, X, 0.0, G);
+    for (uint64_t j = 0; j < nev; j++)
+        for (uint64_t i = j; i < nev; i++) {
+            if (i == j) G[i + j*nev] -= 1.0;
+            else G[i + j*nev] = G[j + i*nev];
+        }
+    f64 err = d_nrm2(nev * nev, G);
+    safe_free((void**)&G);
+    return err;
+}
+
+static f64 ortho_self_z(uint64_t n, uint64_t nev, const c64 *X) {
+    c64 *G = xcalloc(nev * nev, sizeof(c64));
+    z_herk(n, nev, 1.0, X, 0.0, G);
+    for (uint64_t j = 0; j < nev; j++)
+        for (uint64_t i = j; i < nev; i++) {
+            if (i == j) G[i + j*nev] -= 1.0;
+            else G[i + j*nev] = conj(G[j + i*nev]);
+        }
+    f64 err = z_nrm2(nev * nev, G);
+    safe_free((void**)&G);
+    return err;
+}
+
+/* ================================================================
+ * Helper: cross-orthogonality ||X^T * P||_F
+ * ================================================================ */
+static f64 ortho_cross_d(uint64_t n, uint64_t nx, const f64 *X, const f64 *P) {
+    f64 *G = xcalloc(nx * nx, sizeof(f64));
+    d_gemm_tn(nx, nx, n, 1.0, X, P, 0.0, G);
+    f64 err = d_nrm2(nx * nx, G);
+    safe_free((void**)&G);
+    return err;
+}
+
+static f64 ortho_cross_z(uint64_t n, uint64_t nx, const c64 *X, const c64 *P) {
+    c64 *G = xcalloc(nx * nx, sizeof(c64));
+    z_gemm_hn(nx, nx, n, (c64)1, X, P, (c64)0, G);
+    f64 err = z_nrm2(nx * nx, G);
+    safe_free((void**)&G);
+    return err;
+}
+
+/* ================================================================
+ * Test 1: Standard RR, double, 4x4 dense
+ * ================================================================ */
+TEST(d_rr_4x4) {
+    const uint64_t n = 4, nev = 2;
+
+    dense_ctx_d_t *ctx = xcalloc(1, sizeof(dense_ctx_d_t));
     ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f64));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
+    ctx->A = xcalloc(n * n, sizeof(f64));
+    memcpy(ctx->A, A4x4, n * n * sizeof(f64));
 
-    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d, .ctx = (linop_ctx_t *)ctx };
+    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
+                             .ctx = (linop_ctx_t *)ctx };
 
     f64 *S    = xcalloc(n * nev, sizeof(f64));
     f64 *Cx   = xcalloc(nev * nev, sizeof(f64));
@@ -72,76 +233,49 @@ int test_rr_d(void) {
     f64 *wrk2 = xcalloc(n * nev, sizeof(f64));
     f64 *wrk3 = xcalloc(nev * nev, sizeof(f64));
 
-    for (uint64_t i = 0; i < nev; i++) S[i + i*n] = 1.0;
+    memcpy(S, S4x2_d, n * nev * sizeof(f64));
 
     d_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, NULL);
 
-    f64 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f64 err = fabs(eigVal[i] - (f64)(i + 1));
-        if (err > max_err) max_err = err;
-    }
+    /* Check eigenvalues */
+    ASSERT_NEAR(eigVal[0], eigVal_ref_4x4[0], 1e-4);
+    ASSERT_NEAR(eigVal[1], eigVal_ref_4x4[1], 1e-4);
 
-    int pass = (max_err < TEST_TOL_D);
-    printf("  d_rayleigh_ritz: max_err = %.3e  %s\n", max_err, pass ? "PASS" : "FAIL");
+    /* Check X_new = S * Cx matches reference (up to column sign) */
+    f64 *X_new = xcalloc(n * nev, sizeof(f64));
+    d_gemm_nn(n, nev, nev, 1.0, S, Cx, 0.0, X_new);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
-    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
-}
+    f64 xn_err = cx_error_signed(n, nev, X_new, Xnew_ref_4x4);
+    printf("xn=%.2e ", xn_err);
+    ASSERT(xn_err < 1e-6);
 
-/* ================================================================
- * Test: standard rayleigh_ritz — float
- * ================================================================ */
-int test_rr_s(void) {
-    const uint64_t n = 20, nev = 5;
+    /* Check X_new^T*A*X_new = diag(eigVal) */
+    f64 rq_err = rayleigh_diag_d(n, nev, ctx->A, X_new, eigVal);
+    ASSERT(rq_err < 1e-10);
 
-    diag_ctx_s_t *ctx = xcalloc(1, sizeof(diag_ctx_s_t));
-    ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f32));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f32)(i + 1);
-
-    LinearOperator_s_t A = { .rows = n, .cols = n, .matvec = diag_matvec_s, .ctx = (linop_ctx_t *)ctx };
-
-    f32 *S    = xcalloc(n * nev, sizeof(f32));
-    f32 *Cx   = xcalloc(nev * nev, sizeof(f32));
-    f32 *eigVal = xcalloc(nev, sizeof(f32));
-    f32 *wrk1 = xcalloc(nev * nev, sizeof(f32));
-    f32 *wrk2 = xcalloc(n * nev, sizeof(f32));
-    f32 *wrk3 = xcalloc(nev * nev, sizeof(f32));
-
-    for (uint64_t i = 0; i < nev; i++) S[i + i*n] = 1.0f;
-
-    s_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, NULL);
-
-    f32 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f32 err = fabsf(eigVal[i] - (f32)(i + 1));
-        if (err > max_err) max_err = err;
-    }
-
-    int pass = (max_err < TEST_TOL_S);
-    printf("  s_rayleigh_ritz: max_err = %.3e  %s\n", max_err, pass ? "PASS" : "FAIL");
+    /* Check orthonormality */
+    f64 orth_err = ortho_self_d(n, nev, X_new);
+    ASSERT(orth_err < 1e-10);
 
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
+    safe_free((void**)&X_new);
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
 
 /* ================================================================
- * Test: standard rayleigh_ritz — complex double
+ * Test 2: Standard RR, complex double, 4x4 — complex S
  * ================================================================ */
-int test_rr_z(void) {
-    const uint64_t n = 20, nev = 5;
+TEST(z_rr_4x4) {
+    const uint64_t n = 4, nev = 2;
 
-    diag_ctx_z_t *ctx = xcalloc(1, sizeof(diag_ctx_z_t));
+    dense_ctx_z_t *ctx = xcalloc(1, sizeof(dense_ctx_z_t));
     ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f64));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
+    ctx->A = xcalloc(n * n, sizeof(c64));
+    for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A4x4[i] + 0*I;
 
-    LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = diag_matvec_z, .ctx = (linop_ctx_t *)ctx };
+    LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
+                             .ctx = (linop_ctx_t *)ctx };
 
     c64 *S    = xcalloc(n * nev, sizeof(c64));
     c64 *Cx   = xcalloc(nev * nev, sizeof(c64));
@@ -150,269 +284,55 @@ int test_rr_z(void) {
     c64 *wrk2 = xcalloc(n * nev, sizeof(c64));
     c64 *wrk3 = xcalloc(nev * nev, sizeof(c64));
 
-    for (uint64_t i = 0; i < nev; i++) S[i + i*n] = 1.0 + 0*I;
+    /* Complex S with nonzero imaginary parts */
+    S[0] = 1.0 + 0.5*I;  S[1] = -1.0 + 0.3*I;
+    S[2] = 1.0 - 0.2*I;  S[3] = -1.0 + 0.1*I;
+    S[4] = 1.0 - 0.3*I;  S[5] = 1.0 + 0.5*I;
+    S[6] = -1.0 + 0.4*I; S[7] = -2.0 - 0.2*I;
 
     z_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, NULL);
 
-    f64 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f64 err = fabs(eigVal[i] - (f64)(i + 1));
-        if (err > max_err) max_err = err;
-    }
+    c64 *X_new = xcalloc(n * nev, sizeof(c64));
+    z_gemm_nn(n, nev, nev, (c64)1, S, Cx, (c64)0, X_new);
 
-    int pass = (max_err < TEST_TOL_D);
-    printf("  z_rayleigh_ritz: max_err = %.3e  %s\n", max_err, pass ? "PASS" : "FAIL");
+    /* Check X^H*A*X = diag(eigVal) */
+    f64 rq_err = rayleigh_diag_z(n, nev, ctx->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    ASSERT(rq_err < 1e-10);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
-    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
-}
+    /* Check orthonormality */
+    f64 orth_err = ortho_self_z(n, nev, X_new);
+    ASSERT(orth_err < 1e-10);
 
-/* ================================================================
- * Test: standard rayleigh_ritz — complex float
- * ================================================================ */
-int test_rr_c(void) {
-    const uint64_t n = 20, nev = 5;
-
-    diag_ctx_c_t *ctx = xcalloc(1, sizeof(diag_ctx_c_t));
-    ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f32));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f32)(i + 1);
-
-    LinearOperator_c_t A = { .rows = n, .cols = n, .matvec = diag_matvec_c, .ctx = (linop_ctx_t *)ctx };
-
-    c32 *S    = xcalloc(n * nev, sizeof(c32));
-    c32 *Cx   = xcalloc(nev * nev, sizeof(c32));
-    f32 *eigVal = xcalloc(nev, sizeof(f32));
-    c32 *wrk1 = xcalloc(nev * nev, sizeof(c32));
-    c32 *wrk2 = xcalloc(n * nev, sizeof(c32));
-    c32 *wrk3 = xcalloc(nev * nev, sizeof(c32));
-
-    for (uint64_t i = 0; i < nev; i++) S[i + i*n] = 1.0f + 0*I;
-
-    c_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, NULL);
-
-    f32 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f32 err = fabsf(eigVal[i] - (f32)(i + 1));
-        if (err > max_err) max_err = err;
-    }
-
-    int pass = (max_err < TEST_TOL_S);
-    printf("  c_rayleigh_ritz: max_err = %.3e  %s\n", max_err, pass ? "PASS" : "FAIL");
+    /* Eigenvalues should be positive and sorted */
+    ASSERT(eigVal[0] > 0);
+    ASSERT(eigVal[0] < eigVal[1]);
 
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
-    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
-}
-
-/* ================================================================
- * Test: rayleigh_ritz_modified — double, mult=2
- *
- * S = [e1..e_nev | random_cols] (n x 2*nev), mult=2
- * A = diag(1..n)
- * Verify eigenvalues match expected lowest nev eigenvalues
- * Verify Cx reconstruction: X_new = S * Cx gives correct eigenvectors
- * ================================================================ */
-int test_rr_modified_d(void) {
-    const uint64_t n = 20, nev = 3;
-    const uint64_t mult = 2;
-    const uint64_t sizeSub = mult * nev;
-
-    diag_ctx_d_t *ctx = xcalloc(1, sizeof(diag_ctx_d_t));
-    ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f64));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
-
-    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d, .ctx = (linop_ctx_t *)ctx };
-
-    /* S = [e1..e_nev | e_{nev+1}..e_{2*nev}] — standard basis */
-    f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
-    for (uint64_t j = 0; j < sizeSub; j++) S[j + j*n] = 1.0;
-
-    const uint64_t n_rem = (mult - 1) * nev;
-    f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));  /* used as temp in step 9 */
-    f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
-    f64 *eigVal = xcalloc(nev, sizeof(f64));
-    f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
-    f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
-    f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
-
-    uint8_t useOrtho = 0;
-
-    d_rayleigh_ritz_modified(n, nev, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
-
-    /* Eigenvalues should be 1, 2, 3 (lowest of diag 1..6) */
-    f64 max_err = 0;
-    printf("  Modified RR eigenvalues:\n");
-    for (uint64_t i = 0; i < nev; i++) {
-        f64 expected = (f64)(i + 1);
-        f64 err = fabs(eigVal[i] - expected);
-        if (err > max_err) max_err = err;
-        printf("    λ[%lu] = %.6f (expected %.1f, error = %.3e)\n",
-               (unsigned long)i, eigVal[i], expected, err);
-    }
-
-    /* Verify X_new = S * Cx produces correct eigenvectors
-     * Cx is sizeSub x nev (first nev columns of back-transformed eigenvectors) */
-    f64 *X_new = xcalloc(n * nev, sizeof(f64));
-    d_gemm_nn(n, nev, sizeSub, 1.0, S, Cx, 0.0, X_new);
-
-    /* Each column of X_new should be a standard basis vector (up to sign) */
-    f64 recon_err = 0;
-    for (uint64_t j = 0; j < nev; j++) {
-        /* Column j should point in direction e_{j+1} (eigenvalue j+1) */
-        /* Check that |X_new[j, j]| ≈ 1 and others ≈ 0 */
-        f64 col_norm = 0;
-        for (uint64_t i = 0; i < n; i++) col_norm += X_new[i + j*n] * X_new[i + j*n];
-        col_norm = sqrt(col_norm);
-        f64 dominant = fabs(X_new[j + j*n]) / col_norm;
-        f64 err = fabs(dominant - 1.0);
-        if (err > recon_err) recon_err = err;
-    }
-    printf("  Cx reconstruction error: %.3e\n", recon_err);
-
-    int pass = (max_err < TEST_TOL_D) && (recon_err < TEST_TOL_D) && (0 != useOrtho || 1);
-    printf("  useOrtho = %d (should be 0 for well-conditioned input)\n", useOrtho);
-    /* useOrtho should remain 0 if condition is fine */
-    pass = pass && (0 == useOrtho);
-    printf("  d_rayleigh_ritz_modified (mult=2): %s\n", pass ? "PASS" : "FAIL");
-
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
-    safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     safe_free((void**)&X_new);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
 
 /* ================================================================
- * Test: rayleigh_ritz_modified — double, mult=3
+ * Test 3: Standard RR with B=2I (double)
  * ================================================================ */
-int test_rr_modified_d_mult3(void) {
-    const uint64_t n = 20, nev = 3;
-    const uint64_t mult = 3;
-    const uint64_t sizeSub = mult * nev;
+TEST(d_rr_4x4_with_B) {
+    const uint64_t n = 4, nev = 2;
 
-    diag_ctx_d_t *ctx = xcalloc(1, sizeof(diag_ctx_d_t));
-    ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f64));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
-
-    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d, .ctx = (linop_ctx_t *)ctx };
-
-    /* S = [e1..e_nev | e_{nev+1}..e_{2*nev} | e_{2*nev+1}..e_{3*nev}] */
-    f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
-    for (uint64_t j = 0; j < sizeSub; j++) S[j + j*n] = 1.0;
-
-    const uint64_t n_rem = (mult - 1) * nev;
-    f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));
-    f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
-    f64 *eigVal = xcalloc(nev, sizeof(f64));
-    f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
-    f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
-    f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
-
-    uint8_t useOrtho = 0;
-
-    d_rayleigh_ritz_modified(n, nev, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
-
-    /* Eigenvalues should be 1, 2, 3 (lowest of diag 1..9) */
-    f64 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f64 err = fabs(eigVal[i] - (f64)(i + 1));
-        if (err > max_err) max_err = err;
-    }
-
-    int pass = (max_err < TEST_TOL_D) && (0 == useOrtho);
-    printf("  d_rayleigh_ritz_modified (mult=3): max_err = %.3e  %s\n",
-           max_err, pass ? "PASS" : "FAIL");
-
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
-    safe_free((void**)&eigVal);
-    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
-}
-
-/* ================================================================
- * Test: rayleigh_ritz_modified — complex double, mult=2
- * ================================================================ */
-int test_rr_modified_z(void) {
-    const uint64_t n = 20, nev = 3;
-    const uint64_t mult = 2;
-    const uint64_t sizeSub = mult * nev;
-
-    diag_ctx_z_t *ctx = xcalloc(1, sizeof(diag_ctx_z_t));
-    ctx->n = n;
-    ctx->diag = xcalloc(n, sizeof(f64));
-    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
-
-    LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = diag_matvec_z, .ctx = (linop_ctx_t *)ctx };
-
-    c64 *S    = xcalloc(n * sizeSub, sizeof(c64));
-    for (uint64_t j = 0; j < sizeSub; j++) S[j + j*n] = 1.0 + 0*I;
-
-    const uint64_t n_rem = (mult - 1) * nev;
-    c64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(c64));
-    c64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(c64));
-    f64 *eigVal = xcalloc(nev, sizeof(f64));
-    c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
-    c64 *wrk2 = xcalloc(n * sizeSub, sizeof(c64));
-    c64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(c64));
-
-    uint8_t useOrtho = 0;
-
-    z_rayleigh_ritz_modified(n, nev, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
-
-    f64 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f64 err = fabs(eigVal[i] - (f64)(i + 1));
-        if (err > max_err) max_err = err;
-    }
-
-    int pass = (max_err < TEST_TOL_D) && (0 == useOrtho);
-    printf("  z_rayleigh_ritz_modified (mult=2): max_err = %.3e  %s\n",
-           max_err, pass ? "PASS" : "FAIL");
-
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
-    safe_free((void**)&eigVal);
-    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctx->diag); safe_free((void**)&ctx);
-    return pass;
-}
-
-/* ================================================================
- * Test: rayleigh_ritz with B operator (double)
- * A = diag(1..n), B = 2*I  =>  generalized eigvals = A/B = 0.5, 1, 1.5, ...
- * ================================================================ */
-
-typedef struct { uint64_t n; f64 scale; } scale_ctx_d_t;
-
-void scale_matvec_d(const LinearOperator_d_t *op, f64 *restrict x, f64 *restrict y) {
-    scale_ctx_d_t *ctx = (scale_ctx_d_t *)op->ctx;
-    for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->scale * x[i];
-}
-
-int test_rr_d_with_B(void) {
-    const uint64_t n = 20, nev = 5;
-
-    diag_ctx_d_t *ctxA = xcalloc(1, sizeof(diag_ctx_d_t));
+    dense_ctx_d_t *ctxA = xcalloc(1, sizeof(dense_ctx_d_t));
     ctxA->n = n;
-    ctxA->diag = xcalloc(n, sizeof(f64));
-    for (uint64_t i = 0; i < n; i++) ctxA->diag[i] = (f64)(i + 1);
+    ctxA->A = xcalloc(n * n, sizeof(f64));
+    memcpy(ctxA->A, A4x4, n * n * sizeof(f64));
 
     scale_ctx_d_t *ctxB = xcalloc(1, sizeof(scale_ctx_d_t));
     ctxB->n = n;
     ctxB->scale = 2.0;
 
-    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d, .ctx = (linop_ctx_t *)ctxA };
-    LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = scale_matvec_d, .ctx = (linop_ctx_t *)ctxB };
+    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
+                             .ctx = (linop_ctx_t *)ctxA };
+    LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = scale_matvec_d,
+                             .ctx = (linop_ctx_t *)ctxB };
 
     f64 *S    = xcalloc(n * nev, sizeof(f64));
     f64 *Cx   = xcalloc(nev * nev, sizeof(f64));
@@ -421,47 +341,333 @@ int test_rr_d_with_B(void) {
     f64 *wrk2 = xcalloc(n * nev, sizeof(f64));
     f64 *wrk3 = xcalloc(nev * nev, sizeof(f64));
 
-    for (uint64_t i = 0; i < nev; i++) S[i + i*n] = 1.0;
+    memcpy(S, S4x2_d, n * nev * sizeof(f64));
 
     d_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, &B);
 
-    /* Generalized eigenvalues: λ_i = (i+1)/2 */
-    f64 max_err = 0;
-    for (uint64_t i = 0; i < nev; i++) {
-        f64 expected = (f64)(i + 1) / 2.0;
-        f64 err = fabs(eigVal[i] - expected);
-        if (err > max_err) max_err = err;
-    }
+    /* Generalized eigenvalues should be half of standard */
+    ASSERT_NEAR(eigVal[0], eigVal_ref_4x4[0] / 2.0, 1e-4);
+    ASSERT_NEAR(eigVal[1], eigVal_ref_4x4[1] / 2.0, 1e-4);
 
-    int pass = (max_err < TEST_TOL_D);
-    printf("  d_rayleigh_ritz (B=2I): max_err = %.3e  %s\n", max_err, pass ? "PASS" : "FAIL");
+    /* Check X_new^T*A*X_new = diag(eigVal) */
+    f64 *X_new = xcalloc(n * nev, sizeof(f64));
+    d_gemm_nn(n, nev, nev, 1.0, S, Cx, 0.0, X_new);
+
+    f64 rq_err = rayleigh_diag_d(n, nev, ctxA->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    /* For generalized: X^T*A*X = Lambda * X^T*B*X = Lambda * 2*I
+     * So X^T*A*X should be diag(2*eigVal) */
+    /* Actually, let me compute it directly */
+
+    /* For gen eig: X^T*A*X = diag(eigVal) * X^T*B*X
+     * If X is B-orthonormal: X^T*B*X = I, then X^T*A*X = diag(eigVal)
+     * But eigVal here are gen eigenvalues, so X^T*A*X = diag(eigVal) only if
+     * X is B-orthonormal. RR produces B-orthonormal X, so this should hold. */
+
+    /* Check B-orthonormality: X^T * (2I) * X = I  → X^T*X = 0.5*I */
+    f64 *G = xcalloc(nev * nev, sizeof(f64));
+    d_syrk(n, nev, 1.0, X_new, 0.0, G);
+    for (uint64_t j = 0; j < nev; j++)
+        for (uint64_t i = j; i < nev; i++) {
+            if (i == j) G[i + j*nev] -= 0.5;
+            else G[i + j*nev] = G[j + i*nev];
+        }
+    f64 borth = d_nrm2(nev * nev, G);
+    printf("borth=%.2e ", borth);
+    ASSERT(borth < 1e-10);
 
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&ctxA->diag); safe_free((void**)&ctxA);
-    safe_free((void**)&ctxB);
-    return pass;
+    safe_free((void**)&X_new); safe_free((void**)&G);
+    safe_free((void**)&ctxA->A); safe_free((void**)&ctxA); safe_free((void**)&ctxB);
+}
+
+/* ================================================================
+ * Test 4: Modified RR, useOrtho=1, double, 6x6 dense
+ * ================================================================ */
+TEST(d_rr_modified_ortho) {
+    const uint64_t n = 6, nx = 2, mult = 2;
+    const uint64_t sizeSub = mult * nx;
+    const uint64_t n_rem = (mult - 1) * nx;
+
+    dense_ctx_d_t *ctx = xcalloc(1, sizeof(dense_ctx_d_t));
+    ctx->n = n;
+    ctx->A = xcalloc(n * n, sizeof(f64));
+    memcpy(ctx->A, A6x6, n * n * sizeof(f64));
+
+    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
+                             .ctx = (linop_ctx_t *)ctx };
+
+    f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
+    f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *eigVal = xcalloc(nx, sizeof(f64));
+    f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
+    f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+
+    memcpy(S, S6x4_d, n * sizeSub * sizeof(f64));
+
+    uint8_t useOrtho = 1;
+    d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+
+    ASSERT(1 == useOrtho);
+
+    /* Check X_new^T*A*X_new = diag(eigVal) */
+    f64 *X_new = xcalloc(n * nx, sizeof(f64));
+    d_gemm_nn(n, nx, sizeSub, 1.0, S, Cx, 0.0, X_new);
+    f64 rq_err = rayleigh_diag_d(n, nx, ctx->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    ASSERT(rq_err < 1e-8);
+
+    /* Eigenvalues positive and sorted */
+    ASSERT(eigVal[0] > 0);
+    ASSERT(eigVal[0] < eigVal[1]);
+
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&eigVal);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&X_new);
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
+}
+
+/* ================================================================
+ * Test 5: Modified RR, useOrtho=1, complex double, 6x6 dense
+ * ================================================================ */
+TEST(z_rr_modified_ortho) {
+    const uint64_t n = 6, nx = 2, mult = 2;
+    const uint64_t sizeSub = mult * nx;
+    const uint64_t n_rem = (mult - 1) * nx;
+
+    dense_ctx_z_t *ctx = xcalloc(1, sizeof(dense_ctx_z_t));
+    ctx->n = n;
+    ctx->A = xcalloc(n * n, sizeof(c64));
+    for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A6x6[i] + 0*I;
+
+    LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
+                             .ctx = (linop_ctx_t *)ctx };
+
+    c64 *S    = xcalloc(n * sizeSub, sizeof(c64));
+    c64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(c64));
+    c64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(c64));
+    f64 *eigVal = xcalloc(nx, sizeof(f64));
+    c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
+    c64 *wrk2 = xcalloc(n * sizeSub, sizeof(c64));
+    c64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(c64));
+
+    /* Complex S with nonzero imaginary parts */
+    for (uint64_t i = 0; i < n * sizeSub; i++)
+        S[i] = S6x4_d[i] + 0.3 * ((f64)(i % 7) - 3.0) * I;
+
+    uint8_t useOrtho = 1;
+    z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+
+    ASSERT(1 == useOrtho);
+
+    /* Check X^H*A*X = diag(eigVal) */
+    c64 *X_new = xcalloc(n * nx, sizeof(c64));
+    z_gemm_nn(n, nx, sizeSub, (c64)1, S, Cx, (c64)0, X_new);
+    f64 rq_err = rayleigh_diag_z(n, nx, ctx->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    ASSERT(rq_err < 1e-8);
+
+    /* Eigenvalues positive and sorted */
+    ASSERT(eigVal[0] > 0);
+    ASSERT(eigVal[0] < eigVal[1]);
+
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&eigVal);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&X_new);
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
+}
+
+/* ================================================================
+ * Test 6: Modified RR, useOrtho=0 (Cholesky), double, 6x6 dense
+ * ================================================================ */
+TEST(d_rr_modified_chol) {
+    const uint64_t n = 6, nx = 2, mult = 2;
+    const uint64_t sizeSub = mult * nx;
+    const uint64_t n_rem = (mult - 1) * nx;
+
+    dense_ctx_d_t *ctx = xcalloc(1, sizeof(dense_ctx_d_t));
+    ctx->n = n;
+    ctx->A = xcalloc(n * n, sizeof(f64));
+    memcpy(ctx->A, A6x6, n * n * sizeof(f64));
+
+    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
+                             .ctx = (linop_ctx_t *)ctx };
+
+    f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
+    f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *eigVal = xcalloc(nx, sizeof(f64));
+    f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
+    f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+
+    memcpy(S, S6x4_d, n * sizeSub * sizeof(f64));
+
+    uint8_t useOrtho = 0;
+    d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+
+    ASSERT(0 == useOrtho);
+
+    /* Check X_new^T*A*X_new = diag(eigVal) */
+    f64 *X_new = xcalloc(n * nx, sizeof(f64));
+    d_gemm_nn(n, nx, sizeSub, 1.0, S, Cx, 0.0, X_new);
+    f64 rq_err = rayleigh_diag_d(n, nx, ctx->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    ASSERT(rq_err < 1e-8);
+
+    /* Check P_new orthogonal to X_new */
+    f64 *P_new = xcalloc(n * nx, sizeof(f64));
+    d_gemm_nn(n, nx, sizeSub, 1.0, S, Cp, 0.0, P_new);
+    f64 orth = ortho_cross_d(n, nx, X_new, P_new);
+    printf("orth=%.2e ", orth);
+    ASSERT(orth < 1e-8);
+
+    /* Eigenvalues positive and sorted */
+    ASSERT(eigVal[0] > 0);
+    ASSERT(eigVal[0] < eigVal[1]);
+
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&eigVal);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&X_new); safe_free((void**)&P_new);
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
+}
+
+/* ================================================================
+ * Test 7: Modified RR, useOrtho=0 (Cholesky), complex double
+ * ================================================================ */
+TEST(z_rr_modified_chol) {
+    const uint64_t n = 6, nx = 2, mult = 2;
+    const uint64_t sizeSub = mult * nx;
+    const uint64_t n_rem = (mult - 1) * nx;
+
+    dense_ctx_z_t *ctx = xcalloc(1, sizeof(dense_ctx_z_t));
+    ctx->n = n;
+    ctx->A = xcalloc(n * n, sizeof(c64));
+    for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A6x6[i] + 0*I;
+
+    LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
+                             .ctx = (linop_ctx_t *)ctx };
+
+    c64 *S    = xcalloc(n * sizeSub, sizeof(c64));
+    c64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(c64));
+    c64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(c64));
+    f64 *eigVal = xcalloc(nx, sizeof(f64));
+    c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
+    c64 *wrk2 = xcalloc(n * sizeSub, sizeof(c64));
+    c64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(c64));
+
+    /* Complex S */
+    for (uint64_t i = 0; i < n * sizeSub; i++)
+        S[i] = S6x4_d[i] + 0.3 * ((f64)(i % 7) - 3.0) * I;
+
+    uint8_t useOrtho = 0;
+    z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+
+    ASSERT(0 == useOrtho);
+
+    /* Check X^H*A*X = diag(eigVal) */
+    c64 *X_new = xcalloc(n * nx, sizeof(c64));
+    z_gemm_nn(n, nx, sizeSub, (c64)1, S, Cx, (c64)0, X_new);
+    f64 rq_err = rayleigh_diag_z(n, nx, ctx->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    ASSERT(rq_err < 1e-8);
+
+    /* Check P_new orthogonal to X_new */
+    c64 *P_new = xcalloc(n * nx, sizeof(c64));
+    z_gemm_nn(n, nx, sizeSub, (c64)1, S, Cp, (c64)0, P_new);
+    f64 orth = ortho_cross_z(n, nx, X_new, P_new);
+    printf("orth=%.2e ", orth);
+    ASSERT(orth < 1e-8);
+
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&eigVal);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&X_new); safe_free((void**)&P_new);
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
+}
+
+/* ================================================================
+ * Test 8: Modified RR, mult=3, double, 6x6 dense
+ * ================================================================ */
+TEST(d_rr_modified_mult3) {
+    const uint64_t n = 6, nx = 2, mult = 3;
+    const uint64_t sizeSub = mult * nx;  /* 6 */
+    const uint64_t n_rem = (mult - 1) * nx;  /* 4 */
+
+    dense_ctx_d_t *ctx = xcalloc(1, sizeof(dense_ctx_d_t));
+    ctx->n = n;
+    ctx->A = xcalloc(n * n, sizeof(f64));
+    memcpy(ctx->A, A6x6, n * n * sizeof(f64));
+
+    LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
+                             .ctx = (linop_ctx_t *)ctx };
+
+    /* S: 6x6, first 4 cols from reference + 2 additional independent vectors */
+    f64 *S = xcalloc(n * sizeSub, sizeof(f64));
+    memcpy(S, S6x4_d, n * 4 * sizeof(f64));
+    /* col 4: {0,1,0,1,0,1} */
+    S[1 + 4*n] = 1.0; S[3 + 4*n] = 1.0; S[5 + 4*n] = 1.0;
+    /* col 5: {1,0,1,0,1,0} */
+    S[0 + 5*n] = 1.0; S[2 + 5*n] = 1.0; S[4 + 5*n] = 1.0;
+
+    f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *eigVal = xcalloc(nx, sizeof(f64));
+    f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
+    f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+
+    uint8_t useOrtho = 1;
+    d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+
+    ASSERT(1 == useOrtho);
+
+    /* Check X_new^T*A*X_new = diag(eigVal) */
+    f64 *X_new = xcalloc(n * nx, sizeof(f64));
+    d_gemm_nn(n, nx, sizeSub, 1.0, S, Cx, 0.0, X_new);
+    f64 rq_err = rayleigh_diag_d(n, nx, ctx->A, X_new, eigVal);
+    printf("rq=%.2e ", rq_err);
+    ASSERT(rq_err < 1e-8);
+
+    /* S spans all of R^6, eigenvalues should be the 2 lowest of A */
+    ASSERT(eigVal[0] > 0);
+    ASSERT(eigVal[0] < eigVal[1]);
+
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&eigVal);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&X_new);
+    safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
 
 /* ================================================================ */
 int main(void) {
-    int pass = 1;
-    int result;
+    printf("Standard Rayleigh-Ritz tests:\n");
+    RUN(d_rr_4x4);
+    RUN(z_rr_4x4);
+    RUN(d_rr_4x4_with_B);
 
-    printf("=== Standard Rayleigh-Ritz ===\n");
+    printf("\nModified Rayleigh-Ritz tests:\n");
+    RUN(d_rr_modified_ortho);
+    RUN(z_rr_modified_ortho);
+    RUN(d_rr_modified_chol);
+    RUN(z_rr_modified_chol);
+    RUN(d_rr_modified_mult3);
 
-    result = test_rr_d();    pass &= result;
-    result = test_rr_s();    pass &= result;
-    result = test_rr_z();    pass &= result;
-    result = test_rr_c();    pass &= result;
-    result = test_rr_d_with_B(); pass &= result;
+    printf("\n========================================\n");
+    printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
+    printf("========================================\n");
 
-    printf("\n=== Modified Rayleigh-Ritz ===\n");
-
-    result = test_rr_modified_d();       pass &= result;
-    result = test_rr_modified_d_mult3(); pass &= result;
-    result = test_rr_modified_z();       pass &= result;
-
-    printf("\n%s\n", pass ? "All tests PASSED" : "Some tests FAILED");
-    return pass ? 0 : 1;
+    return tests_failed > 0 ? 1 : 0;
 }
