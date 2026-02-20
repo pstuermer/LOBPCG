@@ -258,6 +258,36 @@ static f64 B_orthonorm_error_z(uint64_t m, uint64_t n,
 }
 
 /* ====================================================================
+ * Helper functions for B=NULL tests
+ * ==================================================================== */
+
+/* ||V^H*U||_F;  wrk: >= n_v*n_u elements */
+static f64 cross_error_d(uint64_t m, uint64_t n_u, uint64_t n_v,
+                          const f64 *U, const f64 *V, f64 *wrk) {
+    d_gemm_tn(n_v, n_u, m, 1.0, V, U, 0.0, wrk);
+    return d_nrm2(n_v * n_u, wrk);
+}
+
+/* ||U^H*U - I||_F;  wrk: >= n*n elements */
+static f64 norm_error_d(uint64_t m, uint64_t n, const f64 *U, f64 *wrk) {
+    d_gemm_tn(n, n, m, 1.0, U, U, 0.0, wrk);
+    for (uint64_t i = 0; i < n; i++) wrk[i + i*n] -= 1.0;
+    return d_nrm2(n * n, wrk);
+}
+
+static f64 cross_error_z(uint64_t m, uint64_t n_u, uint64_t n_v,
+                          const c64 *U, const c64 *V, c64 *wrk) {
+    z_gemm_hn(n_v, n_u, m, 1.0, V, U, 0.0, wrk);
+    return z_nrm2(n_v * n_u, wrk);
+}
+
+static f64 norm_error_z(uint64_t m, uint64_t n, const c64 *U, c64 *wrk) {
+    z_gemm_hn(n, n, m, 1.0, U, U, 0.0, wrk);
+    for (uint64_t i = 0; i < n; i++) wrk[i + i*n] -= 1.0;
+    return z_nrm2(n * n, wrk);
+}
+
+/* ====================================================================
  * Double precision tests
  * ==================================================================== */
 
@@ -301,17 +331,16 @@ TEST(d_ortho_indefinite_basic) {
     d_gemm_tn(n_v, n_v, m, 1.0, V, wrk1, 0.0, sig);
     fill_lower_d(n_v, sig);
 
+    f64 cross_pre = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_orthonorm_error_d(m, n_u, U, B, wrk2);
+
     /* Call ortho_indefinite */
     d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, sig, wrk1, wrk2, wrk3, B);
 
-    /* Verify ||V^H*B*U||_F < tol */
     f64 ortho_err = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk1);
-    printf("ortho_err=%.2e ", ortho_err);
+    f64 norm_err  = B_orthonorm_error_d(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
-
-    /* Verify ||U^H*B*U - I||_F < tol */
-    f64 norm_err = B_orthonorm_error_d(m, n_u, U, B, wrk1);
-    printf("norm_err=%.2e ", norm_err);
     ASSERT(norm_err < TOL_F64 * n_u);
 
     /* Cleanup */
@@ -345,12 +374,15 @@ TEST(d_ortho_indefinite_no_sig) {
     /* B-orthonormalize V */
     d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
 
+    f64 cross_pre = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_orthonorm_error_d(m, n_u, U, B, wrk2);
+
     /* Call ortho_indefinite with sig=NULL */
     d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
 
     f64 ortho_err = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err = B_orthonorm_error_d(m, n_u, U, B, wrk1);
-    printf("ortho=%.2e norm=%.2e ", ortho_err, norm_err);
+    f64 norm_err  = B_orthonorm_error_d(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
 
@@ -385,12 +417,15 @@ TEST(z_ortho_indefinite_basic) {
     /* B-orthonormalize V */
     z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
 
+    f64 cross_pre = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_orthonorm_error_z(m, n_u, U, B, wrk2);
+
     /* Call ortho_indefinite with sig=NULL */
     z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
 
     f64 ortho_err = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err = B_orthonorm_error_z(m, n_u, U, B, wrk1);
-    printf("ortho=%.2e norm=%.2e ", ortho_err, norm_err);
+    f64 norm_err  = B_orthonorm_error_z(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
 
@@ -419,17 +454,89 @@ TEST(z_ortho_indefinite_larger) {
     fill_random_z(m * n_u, U);
 
     z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+    f64 cross_pre = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_orthonorm_error_z(m, n_u, U, B, wrk2);
+
     z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
 
     f64 ortho_err = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err = B_orthonorm_error_z(m, n_u, U, B, wrk1);
-    printf("ortho=%.2e norm=%.2e ", ortho_err, norm_err);
+    f64 norm_err  = B_orthonorm_error_z(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
 
     safe_free((void**)&V); safe_free((void**)&U);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
     linop_destroy_z(&B);
+}
+
+/* ====================================================================
+ * B=NULL tests (standard orthogonalization path)
+ * ==================================================================== */
+
+TEST(d_ortho_indefinite_no_B) {
+    const uint64_t m = 80, n_u = 6, n_v = 4;
+    const uint64_t max_n = n_u > n_v ? n_u : n_v;
+    const uint64_t wrk_size = m * max_n;
+
+    f64 *V    = xcalloc(m * n_v, sizeof(f64));
+    f64 *U    = xcalloc(m * n_u, sizeof(f64));
+    f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
+
+    fill_random_d(m * n_v, V);
+    fill_random_d(m * n_u, U);
+
+    /* Standard orthonormalize V (B=NULL) */
+    d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, NULL);
+
+    f64 cross_pre = cross_error_d(m, n_u, n_v, U, V, wrk2);
+    f64 norm_pre  = norm_error_d(m, n_u, U, wrk2);
+
+    /* ortho_indefinite with B=NULL, sig=NULL reduces to standard orth */
+    d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, NULL);
+
+    f64 cross = cross_error_d(m, n_u, n_v, U, V, wrk2);
+    f64 norm  = norm_error_d(m, n_u, U, wrk2);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, cross, norm);
+    ASSERT(cross < TOL_F64 * n_u);
+    ASSERT(norm < TOL_F64 * n_u);
+
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
+TEST(z_ortho_indefinite_no_B) {
+    const uint64_t m = 80, n_u = 6, n_v = 4;
+    const uint64_t max_n = n_u > n_v ? n_u : n_v;
+    const uint64_t wrk_size = m * max_n;
+
+    c64 *V    = xcalloc(m * n_v, sizeof(c64));
+    c64 *U    = xcalloc(m * n_u, sizeof(c64));
+    c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
+
+    fill_random_z(m * n_v, V);
+    fill_random_z(m * n_u, U);
+
+    z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, NULL);
+
+    f64 cross_pre = cross_error_z(m, n_u, n_v, U, V, wrk2);
+    f64 norm_pre  = norm_error_z(m, n_u, U, wrk2);
+
+    z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, NULL);
+
+    f64 cross = cross_error_z(m, n_u, n_v, U, V, wrk2);
+    f64 norm  = norm_error_z(m, n_u, U, wrk2);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, cross, norm);
+    ASSERT(cross < TOL_F64 * n_u);
+    ASSERT(norm < TOL_F64 * n_u);
+
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
 /* ====================================================================
@@ -442,10 +549,12 @@ int main(void) {
     printf("Indefinite orthogonalization (double) tests:\n");
     RUN(d_ortho_indefinite_basic);
     RUN(d_ortho_indefinite_no_sig);
+    RUN(d_ortho_indefinite_no_B);
 
     printf("\nIndefinite orthogonalization (double complex) tests:\n");
     RUN(z_ortho_indefinite_basic);
     RUN(z_ortho_indefinite_larger);
+    RUN(z_ortho_indefinite_no_B);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
