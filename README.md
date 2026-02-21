@@ -42,6 +42,7 @@ The test suite includes standard validation problems such as Laplacian eigenvalu
 ├── include/    # Header files
 ├── tests/      # Unit tests
 ├── Makefile    # Build system (CMake migration planned)
+```
 
 ## Theoretical Background
 
