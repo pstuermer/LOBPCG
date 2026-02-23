@@ -6,4 +6,4 @@
 #define RTYPE f64
 #define CTYPE_IS_COMPLEX
 
-#include "ortho_randomized_mat_impl.inc"
+#include "ortho_drop_mat_impl.inc"

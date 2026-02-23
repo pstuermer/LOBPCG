@@ -58,17 +58,8 @@
 
 ---
 
-### ortho_randomize - for lobpcg, klobpcg
-- [x] Create `src/ortho/ortho_randomize_impl.inc`
-- [x] Implement B-orthogonalization of U against V (positive definite)
-- [x] Iterative projection: `U = U - V*(V^H*B*U)`
-- [x] Inner loop calling svqb for orthonormalization
-- [x] Convergence checking for ||V^H*B*U||_F
-- [x] Create instantiation files `ortho_randomize_{s,d,c,z}.c`
-- [x] Add declarations to `lobpcg.h`
-- [x] Create `tests/test_ortho_randomize.c`
-
-**Verify:** `||V^H*B*U||_F < 1e-14` and `||U^H*B*U - I||_F < 1e-14` ✓ PASSED (B=NULL and B=2*I branches)
+### ortho_randomize - REMOVED (superseded by ortho_drop)
+Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h declarations.
 
 ---
 
@@ -86,21 +77,21 @@
 - [x] Fixed undefined `info` variable in eig error path
 - [x] Added 2x2 permutation matrix tests (d/z)
 **Reference:** `ilobpcg.c:73-126` (zsvqb_mat)
-**Priority:** Implement before ortho_randomized_mat (dependency)
+**Priority:** Implement before ortho_drop_mat (dependency)
 
 ---
 
-### ortho_randomized_mat - for ilobpcg
-- [x] Create `src/ortho/ortho_randomized_mat_impl.inc`
+### ortho_drop_mat - for ilobpcg
+- [x] Create `src/ortho/ortho_drop_mat_impl.inc`
 - [x] Implement matrix-based orthogonalization against V
 - [x] Uses svqb_mat internally (not svqb)
 - [x] Double projection to handle indefinite metric
-- [x] Create instantiation files `ortho_randomized_mat_{s,d,c,z}.c`
+- [x] Create instantiation files `ortho_drop_mat_{s,d,c,z}.c`
 - [x] Add declarations to `lobpcg.h`
-- [x] Create `tests/test_ortho_randomized_mat.c`
+- [x] Create `tests/test_ortho_drop_mat.c`
 
 **Verify:** `||V^H*mat*U||_F < tol` ✓ PASSED; fixed wrk3 underallocation (was max_n*max_n, needs m*max_n)
-**Reference:** `ilobpcg.c:128-183` (ortho_randomized_mat)
+**Reference:** `ilobpcg.c:128-183` (ortho_drop_mat)
 **Note:** Was MISSING from original TODO
 
 ---
@@ -268,7 +259,7 @@
 - [x] Create `tests/test_gram.c` (11 tests, all pass)
 - [x] Replace Gram patterns in: svqb, ortho_drop, ortho_randomize, ortho_indefinite, rayleigh_ritz, rayleigh_ritz_modified, indefinite_rr, indefinite_rr_modified, residual, lobpcg, ilobpcg
 - [x] Fix pre-existing wrk3 buffer underallocation in test_ortho_indefinite (was `coef_size`, needs `wrk_size`)
-- [ ] (Skipped) svqb_mat, ortho_randomized_mat — only 2 files, left as-is
+- [ ] (Skipped) svqb_mat, ortho_drop_mat — only 2 files, left as-is
 
 **Verify:** All tests pass after replacements ✓
 
@@ -290,9 +281,9 @@
 |-----------|------|-------------------|-------------------|--------|
 | BLAS wrappers | GEMM correctness | 1e-14 | 1e-6 | ✓ |
 | SVQB | `\|\|U^H*B*U - I\|\|_F` | 1e-14 | 1e-6 | ✓ |
-| ortho_randomize | `\|\|V^H*B*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
+| ortho_drop | `\|\|V^H*B*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
 | svqb_mat | `\|\|U^H*mat*U - I\|\|_F` | 1e-14 | 1e-6 | ✓ |
-| ortho_randomized_mat | `\|\|V^H*mat*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
+| ortho_drop_mat | `\|\|V^H*mat*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
 | ortho_indefinite | ortho & norm | 1e-14 | 1e-6 | ✓ |
 | Rayleigh-Ritz | Eigenvalue error | 1e-12 | 1e-5 | - |
 | Residual | Exact eigenvector | 1e-14 | 1e-6 | - |

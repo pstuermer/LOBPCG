@@ -277,36 +277,6 @@ TYPE_LIST(DECLARE_ORTHO_DROP)
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, wrk1, wrk2, wrk3, B)
 
 /* --------------------------------------------------------------------
- * Function declarations: ortho_randomize
- * Orthogonalize U against V with psd B-inner product
- * Same algorithm as ortho_drop but with eps_randomize (looser tolerance)
- * Returns number of columns retained in U
- * ------------------------------------------------------------------ */
-#define DECLARE_ORTHO_RANDOMIZE(prefix, ctype, rtype, linop) \
-  uint64_t prefix##_ortho_randomize(const uint64_t m,        \
-                                     const uint64_t n_u,      \
-                                     const uint64_t n_v,      \
-                                     const rtype eps_ortho,   \
-                                     const rtype eps_randomize, \
-                                     ctype *restrict U,       \
-                                     ctype *restrict V,       \
-                                     ctype *restrict wrk1,    \
-                                     ctype *restrict wrk2,    \
-                                     ctype *restrict wrk3,    \
-                                     linop *B);
-
-TYPE_LIST(DECLARE_ORTHO_RANDOMIZE)
-#undef DECLARE_ORTHO_RANDOMIZE
-
-#define ortho_randomize(m, n_u, n_v, eps_ortho, eps_randomize, U, V, wrk1, wrk2, wrk3, B) \
-  _Generic((U),                         \
-    f32 *: s_ortho_randomize,           \
-    f64 *: d_ortho_randomize,           \
-    c32 *: c_ortho_randomize,           \
-    c64 *: z_ortho_randomize            \
-  )(m, n_u, n_v, eps_ortho, eps_randomize, U, V, wrk1, wrk2, wrk3, B)
-
-/* --------------------------------------------------------------------
  * Function declarations: ortho_indefinite
  * B-orthogonalize U against V with indefinite B (for ilobpcg)
  * Returns number of columns dropped from U
@@ -337,33 +307,33 @@ TYPE_LIST(DECLARE_ORTHO_INDEFINITE)
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, sig, wrk1, wrk2, wrk3, B)
 
 /* --------------------------------------------------------------------
- * Function declarations: ortho_randomized_mat
+ * Function declarations: ortho_drop_mat
  * Matrix-based B-orthogonalization of U against V (for ilobpcg)
  * Uses double projection (I - V*V^H*mat)^2 for indefinite metric
  * Returns number of columns retained in U
  * ------------------------------------------------------------------ */
-#define DECLARE_ORTHO_RMAT(prefix, ctype, rtype, linop)       \
-  uint64_t prefix##_ortho_randomized_mat(const uint64_t m,    \
-                                         const uint64_t n_u,  \
-                                         const uint64_t n_v,  \
-                                         const rtype eps_ortho, \
-                                         const rtype eps_drop,  \
-                                         ctype *restrict U,    \
-                                         ctype *restrict V,    \
-                                         ctype *restrict mat,  \
-                                         ctype *restrict wrk1, \
-                                         ctype *restrict wrk2, \
-                                         ctype *restrict wrk3);
+#define DECLARE_ORTHO_DROP_MAT(prefix, ctype, rtype, linop)   \
+  uint64_t prefix##_ortho_drop_mat(const uint64_t m,          \
+                                   const uint64_t n_u,        \
+                                   const uint64_t n_v,        \
+                                   const rtype eps_ortho,     \
+                                   const rtype eps_drop,      \
+                                   ctype *restrict U,         \
+                                   ctype *restrict V,         \
+                                   ctype *restrict mat,       \
+                                   ctype *restrict wrk1,      \
+                                   ctype *restrict wrk2,      \
+                                   ctype *restrict wrk3);
 
-TYPE_LIST(DECLARE_ORTHO_RMAT)
-#undef DECLARE_ORTHO_RMAT
+TYPE_LIST(DECLARE_ORTHO_DROP_MAT)
+#undef DECLARE_ORTHO_DROP_MAT
 
-#define ortho_randomized_mat(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3) \
-  _Generic((U),                             \
-    f32 *: s_ortho_randomized_mat,          \
-    f64 *: d_ortho_randomized_mat,          \
-    c32 *: c_ortho_randomized_mat,          \
-    c64 *: z_ortho_randomized_mat           \
+#define ortho_drop_mat(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3) \
+  _Generic((U),                         \
+    f32 *: s_ortho_drop_mat,            \
+    f64 *: d_ortho_drop_mat,            \
+    c32 *: c_ortho_drop_mat,            \
+    c64 *: z_ortho_drop_mat             \
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3)
 
 /* --------------------------------------------------------------------

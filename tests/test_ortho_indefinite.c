@@ -10,7 +10,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <math.h>
 #include <time.h>
 #include <complex.h>
@@ -93,90 +92,33 @@ static LinearOperator_z_t *create_indef_B_z(uint64_t n, uint64_t n_pos) {
     return linop_create_z(n, n, indef_diag_matvec_z, indef_diag_cleanup, ctx);
 }
 
-/* ====================================================================
- * Helper functions
- * ==================================================================== */
-
-static void fill_random_d(uint64_t n, f64 *x) {
-    for (uint64_t i = 0; i < n; i++)
-        x[i] = (f64)rand() / RAND_MAX - 0.5;
-}
-
-static void fill_random_z(uint64_t n, c64 *x) {
-    for (uint64_t i = 0; i < n; i++)
-        x[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
-}
-
-/* Fill lower triangle from upper */
-static void fill_lower_d(uint64_t n, f64 *A) {
-    for (uint64_t j = 0; j < n; j++)
-        for (uint64_t i = j + 1; i < n; i++)
-            A[i + j*n] = A[j + i*n];
-}
-
-static void fill_lower_z(uint64_t n, c64 *A) {
-    for (uint64_t j = 0; j < n; j++)
-        for (uint64_t i = j + 1; i < n; i++)
-            A[i + j*n] = conj(A[j + i*n]);
-}
-
-/* Matrix Frobenius norm */
-static f64 matrix_nrm_d(uint64_t m, uint64_t n, const f64 *A) {
-    f64 sum = 0;
-    for (uint64_t i = 0; i < m * n; i++)
-        sum += A[i] * A[i];
-    return sqrt(sum);
-}
-
-static f64 matrix_nrm_z(uint64_t m, uint64_t n, const c64 *A) {
-    f64 sum = 0;
-    for (uint64_t i = 0; i < m * n; i++)
-        sum += cabs(A[i]) * cabs(A[i]);
-    return sqrt(sum);
-}
-
 /**
- * Compute B-orthogonality error ||V^H*B*U||_F for double precision
- *
- * TODO(human): Implement this verification function.
- *
- * @param m     Number of rows
- * @param n_u   Number of columns in U
- * @param n_v   Number of columns in V
- * @param U     m x n_u matrix
- * @param V     m x n_v matrix
- * @param B     Indefinite B operator
- * @param wrk   Workspace of size m * n_u
- * @return      ||V^H*B*U||_F
+ * Compute B-orthogonality error ||V^H*B*U||_F
  */
-static f64 B_ortho_error_d(uint64_t m, uint64_t n_u, uint64_t n_v,
+static f64 B_cross_error_d(uint64_t m, uint64_t n_u, uint64_t n_v,
                            const f64 *U, const f64 *V,
                            LinearOperator_d_t *B, f64 *wrk) {
-    /* Compute BU = B*U in wrk */
     for (uint64_t j = 0; j < n_u; j++)
         B->matvec(B, (f64*)&U[j * m], &wrk[j * m]);
 
-    /* Compute G = V^T * BU (n_v x n_u) */
     f64 *G = xcalloc(n_v * n_u, sizeof(f64));
     d_gemm_tn(n_v, n_u, m, 1.0, V, wrk, 0.0, G);
 
-    f64 err = matrix_nrm_d(n_v, n_u, G);
+    f64 err = d_nrm2(n_v * n_u, G);
     safe_free((void**)&G);
     return err;
 }
 
-static f64 B_ortho_error_z(uint64_t m, uint64_t n_u, uint64_t n_v,
+static f64 B_cross_error_z(uint64_t m, uint64_t n_u, uint64_t n_v,
                            const c64 *U, const c64 *V,
                            LinearOperator_z_t *B, c64 *wrk) {
-    /* Compute BU = B*U in wrk */
     for (uint64_t j = 0; j < n_u; j++)
         B->matvec(B, (c64*)&U[j * m], &wrk[j * m]);
 
-    /* Compute G = V^H * BU (n_v x n_u) */
     c64 *G = xcalloc(n_v * n_u, sizeof(c64));
     z_gemm_hn(n_v, n_u, m, 1.0, V, wrk, 0.0, G);
 
-    f64 err = matrix_nrm_z(n_v, n_u, G);
+    f64 err = z_nrm2(n_v * n_u, G);
     safe_free((void**)&G);
     return err;
 }
@@ -191,7 +133,7 @@ static f64 B_ortho_error_z(uint64_t m, uint64_t n_u, uint64_t n_v,
  *
  * Returns: max(||off-diag||_F, max_i ||G_ii| - 1|)
  */
-static f64 B_orthonorm_error_d(uint64_t m, uint64_t n,
+static f64 B_norm_error_d(uint64_t m, uint64_t n,
                                const f64 *U, LinearOperator_d_t *B, f64 *wrk) {
     /* BU = B*U */
     for (uint64_t j = 0; j < n; j++)
@@ -223,7 +165,7 @@ static f64 B_orthonorm_error_d(uint64_t m, uint64_t n,
     return (off_diag_err > diag_err) ? off_diag_err : diag_err;
 }
 
-static f64 B_orthonorm_error_z(uint64_t m, uint64_t n,
+static f64 B_norm_error_z(uint64_t m, uint64_t n,
                                const c64 *U, LinearOperator_z_t *B, c64 *wrk) {
     /* BU = B*U */
     for (uint64_t j = 0; j < n; j++)
@@ -318,8 +260,8 @@ TEST(d_ortho_indefinite_basic) {
     f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
 
     /* Fill V and U with random values */
-    fill_random_d(m * n_v, V);
-    fill_random_d(m * n_u, U);
+    for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+    for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
 
     /* B-orthonormalize V using SVQB */
     d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
@@ -329,16 +271,18 @@ TEST(d_ortho_indefinite_basic) {
     for (uint64_t j = 0; j < n_v; j++)
         B->matvec(B, &V[j * m], &wrk1[j * m]);
     d_gemm_tn(n_v, n_v, m, 1.0, V, wrk1, 0.0, sig);
-    fill_lower_d(n_v, sig);
+    for (uint64_t j = 0; j < n_v; j++)
+        for (uint64_t i = j + 1; i < n_v; i++)
+            sig[i + j*n_v] = sig[j + i*n_v];
 
-    f64 cross_pre = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk2);
-    f64 norm_pre  = B_orthonorm_error_d(m, n_u, U, B, wrk2);
+    f64 cross_pre = B_cross_error_d(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_d(m, n_u, U, B, wrk2);
 
     /* Call ortho_indefinite */
     d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, sig, wrk1, wrk2, wrk3, B);
 
-    f64 ortho_err = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err  = B_orthonorm_error_d(m, n_u, U, B, wrk1);
+    f64 ortho_err = B_cross_error_d(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_d(m, n_u, U, B, wrk1);
     printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
@@ -368,20 +312,20 @@ TEST(d_ortho_indefinite_no_sig) {
     f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
     f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
 
-    fill_random_d(m * n_v, V);
-    fill_random_d(m * n_u, U);
+    for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+    for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
 
     /* B-orthonormalize V */
     d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
 
-    f64 cross_pre = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk2);
-    f64 norm_pre  = B_orthonorm_error_d(m, n_u, U, B, wrk2);
+    f64 cross_pre = B_cross_error_d(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_d(m, n_u, U, B, wrk2);
 
     /* Call ortho_indefinite with sig=NULL */
     d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
 
-    f64 ortho_err = B_ortho_error_d(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err  = B_orthonorm_error_d(m, n_u, U, B, wrk1);
+    f64 ortho_err = B_cross_error_d(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_d(m, n_u, U, B, wrk1);
     printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
@@ -411,20 +355,22 @@ TEST(z_ortho_indefinite_basic) {
     c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
     c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
 
-    fill_random_z(m * n_v, V);
-    fill_random_z(m * n_u, U);
+    for (uint64_t i = 0; i < m * n_v; i++)
+        V[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+    for (uint64_t i = 0; i < m * n_u; i++)
+        U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
 
     /* B-orthonormalize V */
     z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
 
-    f64 cross_pre = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk2);
-    f64 norm_pre  = B_orthonorm_error_z(m, n_u, U, B, wrk2);
+    f64 cross_pre = B_cross_error_z(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_z(m, n_u, U, B, wrk2);
 
     /* Call ortho_indefinite with sig=NULL */
     z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
 
-    f64 ortho_err = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err  = B_orthonorm_error_z(m, n_u, U, B, wrk1);
+    f64 ortho_err = B_cross_error_z(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_z(m, n_u, U, B, wrk1);
     printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
@@ -450,18 +396,20 @@ TEST(z_ortho_indefinite_larger) {
     c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
     c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
 
-    fill_random_z(m * n_v, V);
-    fill_random_z(m * n_u, U);
+    for (uint64_t i = 0; i < m * n_v; i++)
+        V[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+    for (uint64_t i = 0; i < m * n_u; i++)
+        U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
 
     z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
 
-    f64 cross_pre = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk2);
-    f64 norm_pre  = B_orthonorm_error_z(m, n_u, U, B, wrk2);
+    f64 cross_pre = B_cross_error_z(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_z(m, n_u, U, B, wrk2);
 
     z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
 
-    f64 ortho_err = B_ortho_error_z(m, n_u, n_v, U, V, B, wrk1);
-    f64 norm_err  = B_orthonorm_error_z(m, n_u, U, B, wrk1);
+    f64 ortho_err = B_cross_error_z(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_z(m, n_u, U, B, wrk1);
     printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
     ASSERT(ortho_err < TOL_F64 * n_u);
     ASSERT(norm_err < TOL_F64 * n_u);
@@ -486,8 +434,8 @@ TEST(d_ortho_indefinite_no_B) {
     f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
     f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
 
-    fill_random_d(m * n_v, V);
-    fill_random_d(m * n_u, U);
+    for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+    for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
 
     /* Standard orthonormalize V (B=NULL) */
     d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, NULL);
@@ -519,8 +467,10 @@ TEST(z_ortho_indefinite_no_B) {
     c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
     c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
 
-    fill_random_z(m * n_v, V);
-    fill_random_z(m * n_u, U);
+    for (uint64_t i = 0; i < m * n_v; i++)
+        V[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+    for (uint64_t i = 0; i < m * n_u; i++)
+        U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
 
     z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, NULL);
 

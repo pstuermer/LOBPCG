@@ -1,5 +1,5 @@
 /**
- * @file ortho_randomized_mat_impl.inc
+ * @file ortho_drop_mat_impl.inc
  * @brief Type-generic matrix-based B-orthogonalization of U against V
  *
  * For ilobpcg: takes explicit dense matrix instead of LinearOperator.
@@ -30,7 +30,7 @@
 #endif
 
 /**
- * ortho_randomized_mat - Matrix-based B-orthogonalization of U against V
+ * ortho_drop_mat - Matrix-based B-orthogonalization of U against V
  *
  * @param m          Number of rows (problem size)
  * @param n_u        Number of columns of U
@@ -52,7 +52,7 @@
  *     2. Inner loop (3 iters): svqb_mat + check ||U^H*mat*U - I||_F
  *     3. Check ||V^H*mat*U||_F / (||mat*V|| * ||U||) < eps_ortho
  */
-uint64_t FN(ortho_randomized_mat)(const uint64_t m, const uint64_t n_u,
+uint64_t FN(ortho_drop_mat)(const uint64_t m, const uint64_t n_u,
                                   const uint64_t n_v,
                                   const RTYPE eps_ortho,
                                   const RTYPE eps_drop,

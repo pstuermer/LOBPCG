@@ -1,8 +1,8 @@
 /**
- * @file test_ortho_randomized_mat.c
+ * @file test_ortho_drop_mat.c
  * @brief Test matrix-based B-orthogonalization of U against V
  *
- * Tests ortho_randomized_mat with indefinite diagonal matrix.
+ * Tests ortho_drop_mat with indefinite diagonal matrix.
  * Verifies: ||V^H*mat*U||_F < tol and ||U^H*mat*U - I_sig||_F < tol
  */
 
@@ -53,7 +53,7 @@ static void make_indef_diag_z(uint64_t m, uint64_t n_pos, c64 *mat) {
  * Tests
  * ==================================================================== */
 
-TEST(d_ortho_randomized_mat) {
+TEST(d_ortho_drop_mat) {
     const uint64_t m = 100;
     const uint64_t n_u = 5, n_v = 5;
     const uint64_t n_pos = 60;
@@ -86,7 +86,7 @@ TEST(d_ortho_randomized_mat) {
         UtMU[i + i*n_u] = fabs(UtMU[i + i*n_u]) - 1.0;
     f64 norm_pre = d_nrm2(n_u * n_u, UtMU);
 
-    d_ortho_randomized_mat(m, n_u, n_v, eps_ortho, eps_drop,
+    d_ortho_drop_mat(m, n_u, n_v, eps_ortho, eps_drop,
                            U, V, mat, wrk1, wrk2, wrk3);
 
     d_gemm_nn(m, n_u, m, 1.0, mat, U, 0.0, tmp);
@@ -107,7 +107,7 @@ TEST(d_ortho_randomized_mat) {
     safe_free((void**)&tmp); safe_free((void**)&VtMU); safe_free((void**)&UtMU);
 }
 
-TEST(z_ortho_randomized_mat) {
+TEST(z_ortho_drop_mat) {
     const uint64_t m = 100;
     const uint64_t n_u = 5, n_v = 5;
     const uint64_t n_pos = 60;
@@ -142,7 +142,7 @@ TEST(z_ortho_randomized_mat) {
         UhMU[i + i*n_u] = fabs(creal(UhMU[i + i*n_u])) - 1.0;
     f64 norm_pre = z_nrm2(n_u * n_u, UhMU);
 
-    z_ortho_randomized_mat(m, n_u, n_v, eps_ortho, eps_drop,
+    z_ortho_drop_mat(m, n_u, n_v, eps_ortho, eps_drop,
                            U, V, mat, wrk1, wrk2, wrk3);
 
     z_gemm_nn(m, n_u, m, 1.0, mat, U, 0.0, tmp);
@@ -166,9 +166,9 @@ TEST(z_ortho_randomized_mat) {
 int main(void) {
     srand((unsigned)time(NULL));
 
-    printf("ortho_randomized_mat tests:\n");
-    RUN(d_ortho_randomized_mat);
-    RUN(z_ortho_randomized_mat);
+    printf("ortho_drop_mat tests:\n");
+    RUN(d_ortho_drop_mat);
+    RUN(z_ortho_drop_mat);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);

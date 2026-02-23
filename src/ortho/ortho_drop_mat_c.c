@@ -1,11 +1,9 @@
 #include "lobpcg.h"
-#include "lobpcg/linop.h"
 #include "lobpcg/blas_wrapper.h"
 
 #define PREFIX c
 #define CTYPE c32
 #define RTYPE f32
-#define LINOP LinearOperator_c_t
 #define CTYPE_IS_COMPLEX
 
-#include "ortho_randomize_impl.inc"
+#include "ortho_drop_mat_impl.inc"
