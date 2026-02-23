@@ -83,6 +83,8 @@
 - [x] Create `tests/test_svqb_mat.c`
 
 **Verify:** `||U^H*mat*U - I||_F < tol` for indefinite mat ✓ PASSED
+- [x] Fixed undefined `info` variable in eig error path
+- [x] Added 2x2 permutation matrix tests (d/z)
 **Reference:** `ilobpcg.c:73-126` (zsvqb_mat)
 **Priority:** Implement before ortho_randomized_mat (dependency)
 
