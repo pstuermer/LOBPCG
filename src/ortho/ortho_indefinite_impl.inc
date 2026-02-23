@@ -50,6 +50,22 @@ static RTYPE FN(matrix_nrm)(uint64_t m, uint64_t n, const CTYPE *A) {
     return sqrt(sum);
 }
 
+/* Compute ||G - I||_F from upper triangle of Hermitian G (n x n, lda = n) */
+static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
+    RTYPE sum = 0;
+    for (uint64_t j = 0; j < n; j++) {
+        /* Diagonal: |G_jj - 1|^2 */
+        RTYPE d = CABS(G[j + j * n] - (CTYPE)1);
+        sum += d * d;
+        /* Off-diagonal upper triangle: 2*|G_ij|^2 (accounts for lower) */
+        for (uint64_t i = 0; i < j; i++) {
+            RTYPE v = CABS(G[i + j * n]);
+            sum += 2 * v * v;
+        }
+    }
+    return sqrt(sum);
+}
+
 /**
  * ortho_indefinite - B-orthogonalize U against V with indefinite B
  *
@@ -92,6 +108,7 @@ uint64_t FN(ortho_indefinite)(
     LINOP *B)
 {
     if (0 == n_u || 0 == n_v) return 0;
+    if (m < n_u + n_v) return 0;
 
     const uint64_t max_outer = 3;
     const uint64_t max_inner = 3;
@@ -146,14 +163,9 @@ uint64_t FN(ortho_indefinite)(
             /* svqb signature: (m, n, tau, drop, U, wrk1, wrk2, wrk3, B) */
             FN(svqb)(m, n_u, eps_drop, 'n', U, wrk1, wrk2, wrk3, B);
 
-            /* Check orthonormality: ||U^H*B*U - I||_F */
+            /* Check orthonormality: ||U^H*B*U - I||_F (upper triangle only) */
             FN(gram_self)(U, m, n_u, B, wrk1, n_u, wrk2);
-            FN(fill_lower_oi)(n_u, wrk1);
-
-            /* Subtract identity and compute Frobenius norm */
-            for (uint64_t i = 0; i < n_u; i++)
-                wrk1[i + i * n_u] -= (CTYPE)1;
-            RTYPE ortho_err = FN(matrix_nrm)(n_u, n_u, wrk1);
+            RTYPE ortho_err = FN(ortho_err_upper)(n_u, wrk1);
 
             if (ortho_err < eps_ortho) break;
         }
