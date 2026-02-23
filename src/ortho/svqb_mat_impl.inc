@@ -5,9 +5,6 @@
  * Like svqb, but takes a dense rows x rows matrix instead of a LinearOperator.
  * Used in ilobpcg where the indefinite metric is an explicit matrix.
  *
- * Reference: Duersch & Shao, "Simultaneous block diagonalization of Gram
- * matrices for orthonormalization", SIAM J. Matrix Anal. Appl. 39(3), 2018
- * (Algorithm 4)
  *
  * Macros required: PREFIX, CTYPE, RTYPE
  */
@@ -28,7 +25,7 @@
 #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabs(x)
 #else
-  #define CABS(x) fabs(x)
+#define CABS(x) fabs(x)
 #endif
 
 /**
@@ -55,58 +52,60 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
                       const char drop, CTYPE *restrict U, CTYPE *restrict mat,
                       CTYPE *restrict wrk1, CTYPE *restrict wrk2,
                       CTYPE *restrict wrk3) {
-    if (0 == cols) return 0;
-    (void)drop;  /* drop='y' not implemented */
+  if (0 == cols) return 0;
+  (void)drop;  /* drop='y' not implemented */
 
-    RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
-    RTYPE *D = xcalloc(cols, sizeof(RTYPE));
+  RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
+  RTYPE *D = xcalloc(cols, sizeof(RTYPE));
 
-    /* 1. Gram matrix G = U^H * mat * U via two GEMMs */
-    /* wrk2 = mat * U  (rows x cols) */
-    FN(gemm_nn)(rows, cols, rows, (CTYPE)1, mat, U, (CTYPE)0, wrk2);
-    /* wrk1 = U^H * wrk2  (cols x cols) */
+  /* 1. Gram matrix G = U^H * mat * U via two GEMMs */
+  /* wrk2 = mat * U  (rows x cols) */
+  FN(gemm_nn)(rows, cols, rows, (CTYPE)1, mat, U, (CTYPE)0, wrk2);
+  /* wrk1 = U^H * wrk2  (cols x cols) */
 #ifdef CTYPE_IS_COMPLEX
-    FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
+  FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
 #else
-    FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
+  FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
 #endif
 
-    /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
-    for (uint64_t i = 0; i < cols; i++) {
-        const RTYPE gii = CABS(wrk1[i + i*cols]);
-        D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
-    }
+  /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
+  for (uint64_t i = 0; i < cols; i++) {
+    const RTYPE gii = CABS(wrk1[i + i*cols]);
+    D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
+  }
 
-    /* 3. Scale upper triangle: G = D*G*D */
-    for (uint64_t j = 0; j < cols; j++)
-        for (uint64_t i = 0; i <= j; i++)
-            wrk1[i + j*cols] *= D[i] * D[j];
+  /* 3. Scale upper triangle: G = D*G*D */
+  for (uint64_t j = 0; j < cols; j++)
+    for (uint64_t i = 0; i <= j; i++)
+      wrk1[i + j*cols] *= D[i] * D[j];
 
-    /* 4. Eigensolve G = V *lambda * V^H (reads upper triangle) */
-    if (0 != FN(eig)(cols, wrk1, eigvals)) {
-        safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
-    }
+  /* 4. Eigensolve G = V *lambda * V^H (reads upper triangle) */
+  int info = FN(eig)(cols, wrk1, eigvals);
+  if (0 != info) {
+    fprintf(stderr, "Error in LAPACKE_zheev: %d\n", info);
+    safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
+  }
 
-    /* 5. Threshold */
-    RTYPE maxeig = 0;
+  /* 5. Threshold */
+  RTYPE maxeig = 0;
+  for (uint64_t i = 0; i < cols; i++)
+    if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
+  const RTYPE thresh = tau * maxeig;
+
+  /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
+   *    where D_final_jj = 1/sqrt(max(|lambda_j|, thresh)) */
+  for (uint64_t j = 0; j < cols; j++) {
+    RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
     for (uint64_t i = 0; i < cols; i++)
-        if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
-    RTYPE thresh = tau * maxeig;
+      wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
+  }
 
-    /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
-     *    where D_final_jj = 1/sqrt(max(|lambda_j|, thresh)) */
-    for (uint64_t j = 0; j < cols; j++) {
-        RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
-        for (uint64_t i = 0; i < cols; i++)
-            wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
-    }
+  /* U_new = U * T */
+  FN(gemm_nn)(rows, cols, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
+  memcpy(U, wrk3, rows*cols*sizeof(CTYPE));
 
-    /* U_new = U * T */
-    FN(gemm_nn)(rows, cols, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
-    memcpy(U, wrk3, rows*cols*sizeof(CTYPE));
-
-    safe_free((void**)&eigvals); safe_free((void**)&D);
-    return cols;
+  safe_free((void**)&eigvals); safe_free((void**)&D);
+  return cols;
 }
 
 #undef CONCAT2

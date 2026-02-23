@@ -11,11 +11,6 @@
  * 64-byte aligned allocation functions for SIMD and cache line optimization.
  * All functions check for allocation failure and exit on error.
  *
- * Improvements over ~/LREP_post/include/lrep.h:
- *  - safe_free properly nullifies caller's pointer (takes void** not void*)
- *  - xcalloc matches standard calloc(num, size) signature
- *  - Overflow checking in xcalloc prevents integer overflow attacks
- *  - Clear error messages specify which function failed
  */
 
 /**
@@ -88,8 +83,6 @@ static inline void *xcalloc(size_t num, size_t size) {
  * use-after-free and double-free bugs.
  *
  * CRITICAL: Takes void** (pointer-to-pointer), not void*.
- * This is the key fix over the reference implementation which had a bug
- * where it only set the local copy to NULL, not the caller's pointer.
  *
  * Usage:
  *   double *data = xmalloc(1024);

@@ -187,12 +187,79 @@ TEST(z_svqb_mat_indef) {
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
+/* ====================================================================
+ * Permutation matrix tests (2x2, B = {{0,1},{1,0}}, eigenvalues ±1)
+ * ==================================================================== */
+
+#ifndef MAX
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
+/* NOTE: these tests verify |G_ii| ≈ 1 but not the sign of G_ii.
+ * A stricter check would verify the signature matches the expected
+ * eigenvector of B (e.g. +1 eigenvalue → G_11 = +1). */
+TEST(d_svqb_mat_permutation) {
+    const uint64_t m = 2, n = 1;
+
+    f64 *U = xcalloc(m * n, sizeof(f64));
+    f64 *mat = xcalloc(m * m, sizeof(f64));
+    f64 *wrk1 = xcalloc(n * n, sizeof(f64));
+    f64 *wrk2 = xcalloc(MAX(m * n, n * n), sizeof(f64));
+    f64 *wrk3 = xcalloc(MAX(m * n, n * n), sizeof(f64));
+
+    /* B = {{0,1},{1,0}} (permutation matrix, eigenvalues +1,-1) */
+    mat[0 + 0*m] = 0.0;  mat[0 + 1*m] = 1.0;
+    mat[1 + 0*m] = 1.0;  mat[1 + 1*m] = 0.0;
+
+    /* U = random 2x1 vector */
+    U[0] = 0.6; U[1] = 0.8;
+
+    d_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
+
+    f64 err = ortho_error_mat_d(m, n, U, mat);
+    printf("post: norm=%.2e ", err);
+    ASSERT(err < TOL_F64);
+
+    safe_free((void**)&U); safe_free((void**)&mat);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
+TEST(z_svqb_mat_permutation) {
+    const uint64_t m = 2, n = 1;
+
+    c64 *U = xcalloc(m * n, sizeof(c64));
+    c64 *mat = xcalloc(m * m, sizeof(c64));
+    c64 *wrk1 = xcalloc(n * n, sizeof(c64));
+    c64 *wrk2 = xcalloc(MAX(m * n, n * n), sizeof(c64));
+    c64 *wrk3 = xcalloc(MAX(m * n, n * n), sizeof(c64));
+
+    /* B = {{0,1},{1,0}} */
+    mat[0 + 0*m] = 0.0;  mat[0 + 1*m] = 1.0;
+    mat[1 + 0*m] = 1.0;  mat[1 + 1*m] = 0.0;
+
+    /* U = random complex 2x1 vector */
+    U[0] = 0.6 + I*0.3; U[1] = 0.8 - I*0.1;
+
+    z_svqb_mat(m, n, 1e-14, 'n', U, mat, wrk1, wrk2, wrk3);
+
+    f64 err = ortho_error_mat_z(m, n, U, mat);
+    printf("post: norm=%.2e ", err);
+    ASSERT(err < TOL_F64);
+
+    safe_free((void**)&U); safe_free((void**)&mat);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
+#undef MAX
+
 int main(void) {
     srand((unsigned)time(NULL));
     printf("svqb_mat tests:\n");
     RUN(d_svqb_mat_identity);
     RUN(d_svqb_mat_indef);
     RUN(z_svqb_mat_indef);
+    RUN(d_svqb_mat_permutation);
+    RUN(z_svqb_mat_permutation);
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
     printf("========================================\n");
