@@ -200,6 +200,62 @@ static f64 B_norm_error_z(uint64_t m, uint64_t n,
 }
 
 /* ====================================================================
+ * Block-permutation B operator
+ *
+ * B = blkdiag({{0,1},{1,0}}, {{0,1},{1,0}}, ...)
+ * Swaps adjacent pairs: (x[2i], x[2i+1]) → (x[2i+1], x[2i]).
+ * If m is odd, last element is unchanged (+1).
+ * Eigenvalues are ±1 (non-diagonal indefinite operator).
+ * ==================================================================== */
+
+typedef struct {
+    uint64_t m;
+} perm_blk_ctx_t;
+
+static void perm_blk_matvec_d(const LinearOperator_d_t *op, f64 *x, f64 *y) {
+    perm_blk_ctx_t *ctx = (perm_blk_ctx_t *)op->ctx->data;
+    uint64_t pairs = ctx->m / 2;
+    for (uint64_t i = 0; i < pairs; i++) {
+        y[2*i]     = x[2*i + 1];
+        y[2*i + 1] = x[2*i];
+    }
+    if (ctx->m % 2) y[ctx->m - 1] = x[ctx->m - 1];
+}
+
+static void perm_blk_matvec_z(const LinearOperator_z_t *op, c64 *x, c64 *y) {
+    perm_blk_ctx_t *ctx = (perm_blk_ctx_t *)op->ctx->data;
+    uint64_t pairs = ctx->m / 2;
+    for (uint64_t i = 0; i < pairs; i++) {
+        y[2*i]     = x[2*i + 1];
+        y[2*i + 1] = x[2*i];
+    }
+    if (ctx->m % 2) y[ctx->m - 1] = x[ctx->m - 1];
+}
+
+static void perm_blk_cleanup(linop_ctx_t *ctx) {
+    if (ctx && ctx->data) safe_free((void**)&ctx->data);
+    if (ctx) safe_free((void**)&ctx);
+}
+
+static LinearOperator_d_t *create_perm_B_d(uint64_t m) {
+    linop_ctx_t *ctx = xcalloc(1, sizeof(linop_ctx_t));
+    perm_blk_ctx_t *data = xcalloc(1, sizeof(perm_blk_ctx_t));
+    data->m = m;
+    ctx->data = data;
+    ctx->data_size = sizeof(perm_blk_ctx_t);
+    return linop_create_d(m, m, perm_blk_matvec_d, perm_blk_cleanup, ctx);
+}
+
+static LinearOperator_z_t *create_perm_B_z(uint64_t m) {
+    linop_ctx_t *ctx = xcalloc(1, sizeof(linop_ctx_t));
+    perm_blk_ctx_t *data = xcalloc(1, sizeof(perm_blk_ctx_t));
+    data->m = m;
+    ctx->data = data;
+    ctx->data_size = sizeof(perm_blk_ctx_t);
+    return linop_create_z(m, m, perm_blk_matvec_z, perm_blk_cleanup, ctx);
+}
+
+/* ====================================================================
  * Helper functions for B=NULL tests
  * ==================================================================== */
 
@@ -420,6 +476,158 @@ TEST(z_ortho_indefinite_larger) {
 }
 
 /* ====================================================================
+ * Block-permutation B tests
+ * ==================================================================== */
+
+TEST(d_ortho_indefinite_perm) {
+    const uint64_t m = 100, n_v = 5, n_u = 8;
+
+    LinearOperator_d_t *B = create_perm_B_d(m);
+
+    f64 *V = xcalloc(m * n_v, sizeof(f64));
+    f64 *U = xcalloc(m * n_u, sizeof(f64));
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
+    f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
+
+    for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+    for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
+
+    d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+    f64 *sig = xcalloc(n_v * n_v, sizeof(f64));
+    for (uint64_t j = 0; j < n_v; j++)
+        B->matvec(B, &V[j * m], &wrk1[j * m]);
+    d_gemm_tn(n_v, n_v, m, 1.0, V, wrk1, 0.0, sig);
+    for (uint64_t j = 0; j < n_v; j++)
+        for (uint64_t i = j + 1; i < n_v; i++)
+            sig[i + j*n_v] = sig[j + i*n_v];
+
+    f64 cross_pre = B_cross_error_d(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_d(m, n_u, U, B, wrk2);
+
+    d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, sig, wrk1, wrk2, wrk3, B);
+
+    f64 ortho_err = B_cross_error_d(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_d(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
+    ASSERT(ortho_err < TOL_F64 * n_u);
+    ASSERT(norm_err < TOL_F64 * n_u);
+
+    safe_free((void**)&V); safe_free((void**)&U); safe_free((void**)&sig);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    linop_destroy_d(&B);
+}
+
+TEST(d_ortho_indefinite_perm_no_sig) {
+    const uint64_t m = 80, n_v = 4, n_u = 6;
+
+    LinearOperator_d_t *B = create_perm_B_d(m);
+
+    f64 *V = xcalloc(m * n_v, sizeof(f64));
+    f64 *U = xcalloc(m * n_u, sizeof(f64));
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
+    f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+    f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
+
+    for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+    for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
+
+    d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+    f64 cross_pre = B_cross_error_d(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_d(m, n_u, U, B, wrk2);
+
+    d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
+
+    f64 ortho_err = B_cross_error_d(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_d(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
+    ASSERT(ortho_err < TOL_F64 * n_u);
+    ASSERT(norm_err < TOL_F64 * n_u);
+
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    linop_destroy_d(&B);
+}
+
+TEST(z_ortho_indefinite_perm) {
+    const uint64_t m = 100, n_v = 5, n_u = 8;
+
+    LinearOperator_z_t *B = create_perm_B_z(m);
+
+    c64 *V = xcalloc(m * n_v, sizeof(c64));
+    c64 *U = xcalloc(m * n_u, sizeof(c64));
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
+    c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
+
+    for (uint64_t i = 0; i < m * n_v; i++)
+        V[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+    for (uint64_t i = 0; i < m * n_u; i++)
+        U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+
+    z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+    f64 cross_pre = B_cross_error_z(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_z(m, n_u, U, B, wrk2);
+
+    z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
+
+    f64 ortho_err = B_cross_error_z(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_z(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
+    ASSERT(ortho_err < TOL_F64 * n_u);
+    ASSERT(norm_err < TOL_F64 * n_u);
+
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    linop_destroy_z(&B);
+}
+
+TEST(z_ortho_indefinite_perm_larger) {
+    const uint64_t m = 500, n_v = 10, n_u = 15;
+
+    LinearOperator_z_t *B = create_perm_B_z(m);
+
+    c64 *V = xcalloc(m * n_v, sizeof(c64));
+    c64 *U = xcalloc(m * n_u, sizeof(c64));
+    uint64_t max_cols = n_u > n_v ? n_u : n_v;
+    uint64_t wrk_size = m * max_cols;
+    c64 *wrk1 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk2 = xcalloc(wrk_size, sizeof(c64));
+    c64 *wrk3 = xcalloc(wrk_size, sizeof(c64));
+
+    for (uint64_t i = 0; i < m * n_v; i++)
+        V[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+    for (uint64_t i = 0; i < m * n_u; i++)
+        U[i] = ((f64)rand()/RAND_MAX - 0.5) + I*((f64)rand()/RAND_MAX - 0.5);
+
+    z_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+    f64 cross_pre = B_cross_error_z(m, n_u, n_v, U, V, B, wrk2);
+    f64 norm_pre  = B_norm_error_z(m, n_u, U, B, wrk2);
+
+    z_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-14, U, V, NULL, wrk1, wrk2, wrk3, B);
+
+    f64 ortho_err = B_cross_error_z(m, n_u, n_v, U, V, B, wrk1);
+    f64 norm_err  = B_norm_error_z(m, n_u, U, B, wrk1);
+    printf("pre: cross=%.2e norm=%.2e  post: cross=%.2e norm=%.2e ", cross_pre, norm_pre, ortho_err, norm_err);
+    ASSERT(ortho_err < TOL_F64 * n_u);
+    ASSERT(norm_err < TOL_F64 * n_u);
+
+    safe_free((void**)&V); safe_free((void**)&U);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    linop_destroy_z(&B);
+}
+
+/* ====================================================================
  * B=NULL tests (standard orthogonalization path)
  * ==================================================================== */
 
@@ -499,11 +707,15 @@ int main(void) {
     printf("Indefinite orthogonalization (double) tests:\n");
     RUN(d_ortho_indefinite_basic);
     RUN(d_ortho_indefinite_no_sig);
+    RUN(d_ortho_indefinite_perm);
+    RUN(d_ortho_indefinite_perm_no_sig);
     RUN(d_ortho_indefinite_no_B);
 
     printf("\nIndefinite orthogonalization (double complex) tests:\n");
     RUN(z_ortho_indefinite_basic);
     RUN(z_ortho_indefinite_larger);
+    RUN(z_ortho_indefinite_perm);
+    RUN(z_ortho_indefinite_perm_larger);
     RUN(z_ortho_indefinite_no_B);
 
     printf("\n========================================\n");

@@ -108,7 +108,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Add overdetermined guard (`m < n_u + n_v`)
 - [x] Replace fill_lower + full-matrix norm with upper-triangle-only `ortho_err_upper` helper
 
-**Verify:** `test_ortho_indefinite.c` ✓ PASSED (4 indefinite tests + 2 B=NULL tests)
+**Verify:** `test_ortho_indefinite.c` ✓ PASSED (4 diagonal-B + 4 permutation-B + 2 B=NULL tests)
 **Reference:** `ilobpcg.c:185-350` (zortho_randomize_indefinite)
 
 ---
