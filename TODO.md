@@ -17,6 +17,7 @@
 ### Build System
 - [x] Create `Makefile` with MKL/OpenBLAS/BLIS backend support
 - [x] Create `examples/Makefile`
+- [x] Clean up Makefile: wildcard-based test discovery, all tests link against `liblobpcg.a`; moved `linop_test.c` → `tests/linop_test.c`
 - [ ] (Deferred) CMake build system
 
 **Verify:** `make tests && make run-tests`
@@ -148,7 +149,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Sort: positive ascending, negative descending
 - [x] Implement `bubble_sort_sig()` - sort by signature
 
-**Verify:** Test on indefinite matrix with known eigenvalues ✓ PASSED
+**Verify:** `test_indefinite_rr.c` - 17 tests: diag/dense A × diag/perm B, basic/modified, d/s/z/c types ✓ PASSED
 
 ### K-based Rayleigh-Ritz (for klobpcg)
 - [x] K-based RR aliased to standard RR in `lobpcg.h` (algorithmically identical)
@@ -258,7 +259,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Create `src/gram/gram_impl.inc` with `apply_block_op`, `gram_self`, `gram_cross`
 - [x] Create instantiation files `gram_{s,d,c,z}.c`
 - [x] Add declarations + `_Generic` macros to `lobpcg.h`
-- [x] Add `GRAM_SRC` to Makefile, link into all test targets
+- [x] ~~Add `GRAM_SRC` to Makefile~~ (obsolete: tests link against `liblobpcg.a`)
 - [x] Create `tests/test_gram.c` (11 tests, all pass)
 - [x] Replace Gram patterns in: svqb, ortho_drop, ortho_randomize, ortho_indefinite, rayleigh_ritz, rayleigh_ritz_modified, indefinite_rr, indefinite_rr_modified, residual, lobpcg, ilobpcg
 - [x] Fix pre-existing wrk3 buffer underallocation in test_ortho_indefinite (was `coef_size`, needs `wrk_size`)
@@ -288,6 +289,6 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 | svqb_mat | `\|\|U^H*mat*U - I\|\|_F` | 1e-14 | 1e-6 | ✓ |
 | ortho_drop_mat | `\|\|V^H*mat*U\|\|_F` | 1e-14 | 1e-6 | ✓ |
 | ortho_indefinite | ortho & norm | 1e-14 | 1e-6 | ✓ |
-| Rayleigh-Ritz | Eigenvalue error | 1e-12 | 1e-5 | - |
+| Rayleigh-Ritz | Eigenvalue error | 1e-12 | 1e-5 | ✓ |
 | Residual | Exact eigenvector | 1e-14 | 1e-6 | - |
 | LOBPCG | Laplacian eigenvalues | 1e-4 | 1e-4 | - |
