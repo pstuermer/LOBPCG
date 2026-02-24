@@ -373,21 +373,25 @@ TYPE_LIST(DECLARE_INDEF_RR)
       ctype *restrict S, ctype *restrict wrk1,                           \
       ctype *restrict wrk2, ctype *restrict wrk3, ctype *restrict wrk4, \
       ctype *restrict Cx, ctype *restrict Cp,                            \
+      ctype *restrict Cx_ortho,                                          \
       rtype *restrict eigVal, int8_t *restrict signature,                \
+      int *restrict quality_flag,                                        \
       linop *A, linop *B);
 
 TYPE_LIST(DECLARE_INDEF_RR_MOD)
 #undef DECLARE_INDEF_RR_MOD
 
-#define indefinite_rayleigh_ritz_modified(size, nx, mult, nconv, ndrop,     \
-                                          S, wrk1, wrk2, wrk3, wrk4,       \
-                                          Cx, Cp, eigVal, sig, A, B)        \
+#define indefinite_rayleigh_ritz_modified(size, nx, mult, nconv, ndrop,         \
+                                          S, wrk1, wrk2, wrk3, wrk4,           \
+                                          Cx, Cp, Cx_ortho,                     \
+                                          eigVal, sig, quality_flag, A, B)      \
   _Generic((S),                                         \
     f32 *: s_indefinite_rayleigh_ritz_modified,         \
     f64 *: d_indefinite_rayleigh_ritz_modified,         \
     c32 *: c_indefinite_rayleigh_ritz_modified,         \
     c64 *: z_indefinite_rayleigh_ritz_modified          \
-  )(size, nx, mult, nconv, ndrop, S, wrk1, wrk2, wrk3, wrk4, Cx, Cp, eigVal, sig, A, B)
+  )(size, nx, mult, nconv, ndrop, S, wrk1, wrk2, wrk3, wrk4,                  \
+    Cx, Cp, Cx_ortho, eigVal, sig, quality_flag, A, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: Gram matrix helpers
@@ -575,6 +579,7 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
     safe_free((void**)&alg->Cp);					\
     alg->Cp        = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));	\
     alg->AS        = xcalloc(3*n*sizeSub, sizeof(ctype));		\
+    alg->BS        = xcalloc(3*sizeSub*sizeSub, sizeof(ctype));		\
     alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
     return alg;								\
   }

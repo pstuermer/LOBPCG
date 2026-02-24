@@ -125,7 +125,8 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
       memcpy(W, alg->wrk1, size * sizeSub * sizeof(CTYPE));
     }
 
-    /* Orthogonalize W against [X] or [X, P] using indefinite ortho */
+    /* Orthogonalize W against [X] or [X, P] using indefinite ortho
+     * TODO: cache signature matrix from RR for ortho_indefinite reuse */
     if (0 == alg->iter) {
       FN(ortho_indefinite)(size, sizeSub, sizeSub,
 			   eps_ortho, eps_drop,
@@ -155,25 +156,25 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     }
 
     /* Modified indefinite Rayleigh-Ritz */
+    int quality_flag = 1;
     FN(indefinite_rayleigh_ritz_modified)(
 					  size, sizeSub, mult, alg->converged, 0,
 					  S_asm, alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
-					  alg->Cx, alg->Cp, alg->eigVals, alg->signature,
-					  alg->A, alg->B);
+					  alg->Cx, alg->Cp, alg->BS, /* Cx_ortho */
+					  alg->eigVals, alg->signature,
+					  &quality_flag, alg->A, alg->B);
 
-    /* Project back from assembled S (not alg->S which has wrong layout).
-     * Compute X_new and P_new into separate buffers before writing back,
-     * so both use the same unmodified S_asm. */
+    /* Two-path projection depending on eigenvector quality.
+     *
+     * quality_flag == 1 (good): Cx is well-conditioned, use directly.
+     * quality_flag == 5 (poor): Cx has accurate eigenvalue correspondence
+     *   but may be poorly conditioned. Use Cx for residual (needs accurate λ),
+     *   then Cx_ortho (= BS) for the iteration basis (needs stability). */
 
-    /* X_new = S_asm * Cx -> wrk4, then copy to X */
+    /* X_new = S_asm * Cx -> wrk4 (accurate eigenvectors for residual) */
     FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->Cx,
 		(CTYPE)0, alg->wrk4);
     memcpy(X, alg->wrk4, size * sizeSub * sizeof(CTYPE));
-
-    /* P_new = S_asm * Cp -> wrk4, then copy to P */
-    FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->Cp,
-		(CTYPE)0, alg->wrk4);
-    memcpy(P, alg->wrk4, size * sizeSub * sizeof(CTYPE));
 
     /* Compute residual W = A*X - B*X*eigVal */
     FN(get_residual)(size, sizeSub, X, NULL, W, alg->eigVals, alg->wrk1,
@@ -189,6 +190,18 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
       if (alg->resNorm[i] > alg->tol) break;
       alg->converged++;
     }
+
+    if (5 == quality_flag) {
+      /* Overwrite X with well-conditioned basis for next iteration */
+      FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->BS,
+		  (CTYPE)0, alg->wrk4);
+      memcpy(X, alg->wrk4, size * sizeSub * sizeof(CTYPE));
+    }
+
+    /* P_new = S_asm * Cp -> wrk4, then copy to P */
+    FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->Cp,
+		(CTYPE)0, alg->wrk4);
+    memcpy(P, alg->wrk4, size * sizeSub * sizeof(CTYPE));
 
     if (alg->converged == nev) {
       break;
