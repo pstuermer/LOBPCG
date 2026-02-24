@@ -237,7 +237,8 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Use ortho_indefinite for B-orthogonalization
 - [x] Create instantiation files
 
-**Verify:** `test_ilobpcg.c` - diagonal indefinite test problem
+**Verify:** `test_ilobpcg.c` - 2 tests: diagonal indefinite + block-Laplacian with block-permutation B ✓ PASSED
+- [x] Unified test macros (TEST/RUN/ASSERT/ASSERT_NEAR), use `d_ilobpcg_alloc`/`d_lobpcg_free`
 
 ---
 
