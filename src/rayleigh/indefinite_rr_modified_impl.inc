@@ -4,7 +4,8 @@
  *
  * Same as indefinite_rr but for the iterative LOBPCG loop:
  * - S has mult*nx columns (mult=2 for [X,W], mult=3 for [X,P,W])
- * - Extracts Cx (first nx eigenvectors) and Cp (via QR of remainder)
+ * - Extracts Cx (first nx eigenvectors) and Cp = [0; Z2] (direct lower block)
+ * - Cx_ortho is B-orthogonalized copy of Cx when GGEV quality is poor
  * - Returns RTYPE eigenvalues (real part)
  *
  * Macros required: PREFIX, CTYPE, RTYPE, LINOP
@@ -46,9 +47,12 @@
  *
  * Outputs:
  *   Cx:        coefficients for X update (sizeSub x nx)
- *   Cp:        coefficients for P update (sizeSub x nx)
+ *   Cp:        coefficients for P update (sizeSub x nx): top nx rows = 0,
+ *              rows [nx:sizeSub] copied from Cx lower block
+ *   Cx_ortho:  B-orthogonalized Cx (sizeSub x nx); equals Cx if quality good
  *   eigVal:    first nx eigenvalues (RTYPE, real part)
  *   signature: +1/-1 per eigenpair (length sizeSub, sorted)
+ *   quality_flag: 1 = good GGEV quality, 5 = poor (svqb_mat applied to Cx_ortho)
  *
  * Workspace:
  *   wrk1: sizeSub x sizeSub
@@ -62,8 +66,10 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 					   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
 					   CTYPE *restrict wrk3, CTYPE *restrict wrk4,
 					   CTYPE *restrict Cx, CTYPE *restrict Cp,
+					   CTYPE *restrict Cx_ortho,
 					   RTYPE *restrict eigVal,
 					   int8_t *restrict signature,
+					   int *restrict quality_flag,
 					   LINOP *A, LINOP *B) {
 
   (void)nconv;
@@ -76,7 +82,6 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   RTYPE *eigvals_all = xcalloc(sizeSub, sizeof(RTYPE));
   int8_t *sig_all = xcalloc(sizeSub, sizeof(int8_t));
   uint64_t *indices = xcalloc(sizeSub, sizeof(uint64_t));
-  CTYPE *tau = xcalloc(sizeSub, sizeof(CTYPE));
   CTYPE *VR = xcalloc(ss, sizeof(CTYPE)); /* GGEV right eigenvectors */
 #ifdef CTYPE_IS_COMPLEX
   CTYPE *alpha = xcalloc(sizeSub, sizeof(CTYPE));
@@ -145,6 +150,21 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
     sig_all[i] = (CREAL(diag_val) >= 0) ? 1 : -1;
   }
 
+  /* Quality check: relative B-orthogonality of normalized GGEV eigenvectors
+   * Recompute V^H * GB * V after normalization; wrk3 = GB still valid */
+  FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
+#ifdef CTYPE_IS_COMPLEX
+  FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
+#else
+  FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
+#endif
+  for (uint64_t i = 0; i < sizeSub; i++)
+    wrk4[i + i * sizeSub] = (CTYPE)(CABS(wrk4[i + i * sizeSub]) - (RTYPE)1);
+  RTYPE eerr  = FN(nrm2)(ss, wrk4);
+  RTYPE cerr  = FN(nrm2)(ss, VR);
+  RTYPE Bcerr = FN(nrm2)(ss, wrk1);
+  const int quality_ok = (Bcerr < (RTYPE)1e-30 || eerr <= (RTYPE)1e-10 * cerr * Bcerr);
+
   /* 7. Sort by signature */
   FN(bubble_sort_sig)(eigvals_all, sig_all, indices, sizeSub);
 
@@ -169,62 +189,41 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
     }
   }
 
-  /* 11. Extract Cp via QR of Z2 (same pattern as rayleigh_ritz_modified)
-   *     Z2 = rows [nx : sizeSub] of first nx eigenvectors, transposed */
-  const uint64_t n_remainder = (mult - 1) * nx;
-  memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
-  for (uint64_t i = 0; i < nx; i++) {
-    for (uint64_t j = 0; j < n_remainder; j++) {
-      wrk2[i + j * nx] = VR[nx + j + i * sizeSub];
-    }
-  }
-
-  /* QR factorization of Z2^T (nx x n_remainder) */
-  if (0 != FN(geqrf)(nx, n_remainder, wrk2, tau)) {
-    fprintf(stderr, "indefinite_rayleigh_ritz_modified: geqrf failed\n");
-    goto cleanup;
-  }
-
-  uint64_t k = MIN(nx, n_remainder);
-#ifdef CTYPE_IS_COMPLEX
-  if (0 != FN(ungqr)(nx, nx, k, wrk2, tau)) {
-#else
-    if (0 != FN(orgqr)(nx, nx, k, wrk2, tau)) {
-#endif
-      fprintf(stderr, "indefinite_rayleigh_ritz_modified: ungqr/orgqr failed\n");
-      goto cleanup;
-    }
-
-    /* Extract columns nx onwards from sorted VR -> Cp_tmp */
-    memset(Cp, 0, sizeSub * n_remainder * sizeof(CTYPE));
-    for (uint64_t j = 0; j < n_remainder; j++) {
-      for (uint64_t i = 0; i < sizeSub; i++) {
-	Cp[i + j * sizeSub] = VR[i + (nx + j) * sizeSub];
-      }
-    }
-
-    /* Cp_final = Cp_tmp * Q_orth
-     * wrk1 is used as temp: Cp is (sizeSub x n_remainder), wrk2 is (nx x nx)
-     * Result: Cp = (sizeSub x nx) */
-    memcpy(wrk1, Cp, sizeSub * n_remainder * sizeof(CTYPE));
+  /* 11. Extract Cp = [0; Z2]: top nx rows zero, rows [nx:sizeSub] from Cx */
+  {
+    const uint64_t n_remainder = (mult - 1) * nx;
     memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
-    FN(gemm_nn)(sizeSub, nx, nx, (CTYPE)1, wrk1, wrk2, (CTYPE)0, Cp);
-
-  cleanup:
-    safe_free((void**)&eigvals_all);
-    safe_free((void**)&sig_all);
-    safe_free((void**)&indices);
-    safe_free((void**)&tau);
-    safe_free((void**)&VR);
-#ifdef CTYPE_IS_COMPLEX
-    safe_free((void**)&alpha);
-    safe_free((void**)&beta);
-#else
-    safe_free((void**)&alphar);
-    safe_free((void**)&alphai);
-    safe_free((void**)&beta);
-#endif
+    for (uint64_t j = 0; j < nx; j++)
+      memcpy(&Cp[nx + j * sizeSub], &Cx[nx + j * sizeSub],
+             n_remainder * sizeof(CTYPE));
   }
+
+  /* 12. Cx_ortho + quality_flag:
+   *     If GGEV eigenvectors are well-conditioned, Cx_ortho = Cx.
+   *     Otherwise B-orthogonalize via svqb_mat (wrk3=GB still valid). */
+  memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));
+  if (quality_ok) {
+    *quality_flag = 1;
+  } else {
+    /* wrk3=GB (read-only in svqb_mat); wrk1, wrk2, wrk4 free to clobber */
+    FN(svqb_mat)(sizeSub, nx, (RTYPE)1e-12, 'n', Cx_ortho, wrk3, wrk1, wrk2, wrk4);
+    *quality_flag = 5;
+  }
+
+cleanup:
+  safe_free((void**)&eigvals_all);
+  safe_free((void**)&sig_all);
+  safe_free((void**)&indices);
+  safe_free((void**)&VR);
+#ifdef CTYPE_IS_COMPLEX
+  safe_free((void**)&alpha);
+  safe_free((void**)&beta);
+#else
+  safe_free((void**)&alphar);
+  safe_free((void**)&alphai);
+  safe_free((void**)&beta);
+#endif
+}
 
 #undef CONCAT2
 #undef CONCAT

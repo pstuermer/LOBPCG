@@ -494,6 +494,8 @@ TEST(d_indef_rr_modified_diag) {
     const uint64_t n_rem = (mult - 1) * nev;
     f64 *Cx   = xcalloc(sizeSub * nev, sizeof(f64));
     f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(f64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
@@ -503,7 +505,7 @@ TEST(d_indef_rr_modified_diag) {
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, &B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     f64 expected_eig[] = {1.0, 2.0, 3.0};
     f64 max_err = 0;
@@ -522,7 +524,7 @@ TEST(d_indef_rr_modified_diag) {
     ASSERT(max_err < TEST_TOL_D);
     ASSERT(1 == sig_ok);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
@@ -557,6 +559,8 @@ TEST(d_indef_rr_modified_diag_mult3) {
     const uint64_t n_rem = (mult - 1) * nev;
     f64 *Cx   = xcalloc(sizeSub * nev, sizeof(f64));
     f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(f64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
@@ -566,7 +570,7 @@ TEST(d_indef_rr_modified_diag_mult3) {
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, &B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     f64 expected_eig[] = {1.0, 2.0, 3.0};
     f64 max_err = 0;
@@ -577,7 +581,7 @@ TEST(d_indef_rr_modified_diag_mult3) {
     printf("err=%.2e ", max_err);
     ASSERT(max_err < TEST_TOL_D);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
@@ -612,6 +616,8 @@ TEST(z_indef_rr_modified_diag) {
     const uint64_t n_rem = (mult - 1) * nev;
     c64 *Cx   = xcalloc(sizeSub * nev, sizeof(c64));
     c64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(c64));
+    c64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(c64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
@@ -621,7 +627,7 @@ TEST(z_indef_rr_modified_diag) {
 
     z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, &B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     f64 expected_eig[] = {1.0, 2.0, 3.0};
     f64 max_err = 0;
@@ -632,7 +638,7 @@ TEST(z_indef_rr_modified_diag) {
     printf("err=%.2e ", max_err);
     ASSERT(max_err < TEST_TOL_D);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
@@ -782,6 +788,8 @@ TEST(d_indef_rr_modified_perm) {
     const uint64_t n_rem = (mult - 1) * nev;
     f64 *Cx   = xcalloc(sizeSub * nev, sizeof(f64));
     f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(f64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
@@ -791,7 +799,7 @@ TEST(d_indef_rr_modified_perm) {
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, B);
 
     f64 expected_eig[] = {sqrt(2.0), 2.0*sqrt(3.0), sqrt(30.0)};
     f64 max_err = 0;
@@ -802,7 +810,7 @@ TEST(d_indef_rr_modified_perm) {
     printf("err=%.2e ", max_err);
     ASSERT(max_err < TEST_TOL_D);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
@@ -829,6 +837,8 @@ TEST(z_indef_rr_modified_perm) {
     const uint64_t n_rem = (mult - 1) * nev;
     c64 *Cx   = xcalloc(sizeSub * nev, sizeof(c64));
     c64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(c64));
+    c64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(c64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
@@ -838,7 +848,7 @@ TEST(z_indef_rr_modified_perm) {
 
     z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, B);
 
     f64 expected_eig[] = {sqrt(2.0), 2.0*sqrt(3.0), sqrt(30.0)};
     f64 max_err = 0;
@@ -849,7 +859,7 @@ TEST(z_indef_rr_modified_perm) {
     printf("err=%.2e ", max_err);
     ASSERT(max_err < TEST_TOL_D);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
@@ -1018,6 +1028,8 @@ TEST(d_indef_rr_modified_dense) {
     const uint64_t n_rem = (mult - 1) * nev;
     f64 *Cx   = xcalloc(sizeSub * nev, sizeof(f64));
     f64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(f64));
+    f64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(f64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
@@ -1027,7 +1039,7 @@ TEST(d_indef_rr_modified_dense) {
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, &B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     /* Reconstruct X = S * Cx */
     f64 *X = xcalloc(n * nev, sizeof(f64));
@@ -1044,7 +1056,7 @@ TEST(d_indef_rr_modified_dense) {
     ASSERT(rq < 1e-8);
     ASSERT(1 == sort_ok);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig); safe_free((void**)&X);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
@@ -1078,6 +1090,8 @@ TEST(z_indef_rr_modified_dense) {
     const uint64_t n_rem = (mult - 1) * nev;
     c64 *Cx   = xcalloc(sizeSub * nev, sizeof(c64));
     c64 *Cp   = xcalloc(sizeSub * n_rem, sizeof(c64));
+    c64 *Cx_ortho = xcalloc(sizeSub * nev, sizeof(c64));
+    int quality_flag = 0;
     f64 *eigVal = xcalloc(nev, sizeof(f64));
     int8_t *sig = xcalloc(sizeSub, sizeof(int8_t));
     c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
@@ -1087,7 +1101,7 @@ TEST(z_indef_rr_modified_dense) {
 
     z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
                                          S, wrk1, wrk2, wrk3, wrk4,
-                                         Cx, Cp, eigVal, sig, &A, &B);
+                                         Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     c64 *X = xcalloc(n * nev, sizeof(c64));
     z_gemm_nn(n, nev, sizeSub, (c64)1, S, Cx, (c64)0, X);
@@ -1102,7 +1116,7 @@ TEST(z_indef_rr_modified_dense) {
     ASSERT(rq < 1e-8);
     ASSERT(1 == sort_ok);
 
-    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
+    safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);   safe_free((void**)&Cx_ortho);
     safe_free((void**)&eigVal); safe_free((void**)&sig); safe_free((void**)&X);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2);
     safe_free((void**)&wrk3); safe_free((void**)&wrk4);
