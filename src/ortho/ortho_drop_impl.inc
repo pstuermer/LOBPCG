@@ -84,17 +84,16 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
 
             /* Check ||U^H * B * U - I||_F < eps_ortho */
             U_norm = FN(nrm2)(m * n_u, U);
+            FN(gram_self)(U, m, n_u, B, wrk2, n_u, wrk1);
             if (NULL == B) {
                 BU_norm = U_norm;
             } else {
-                FN(apply_block_op)(B, U, wrk1, m, n_u);
                 BU_norm = FN(nrm2)(m * n_u, wrk1);
             }
-            FN(gram_self)(U, m, n_u, B, wrk2, n_u, wrk1);
 
-            /* Subtract identity: G = G - I */
+            /* Subtract identity: G = |G_jj| - 1 on diagonal */
             for (uint64_t i = 0; i < n_u; i++) {
-                wrk2[i + i*n_u] -= (CTYPE)1;
+                wrk2[i + i*n_u] = CABS(wrk2[i + i*n_u]) - (RTYPE)1;
             }
 
             RTYPE R_norm = FN(nrm2)(n_u * n_u, wrk2);

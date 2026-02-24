@@ -59,6 +59,15 @@
 
 ---
 
+### ortho_drop - for lobpcg
+- [x] Fixed fprintf format: `(uint32_t)` → `(unsigned long)` to match `%lu`
+- [x] Inner-loop diagonal check: use `CABS(G_jj) - 1` instead of `G_jj - 1` (matches reference, robust for complex types)
+- [x] Eliminated redundant B-application: reorder so `gram_self` runs first, reuse `wrk1 = B*U` for `BU_norm` (saves n_u matvecs per inner iteration)
+- [ ] (Deferred) Implement drop='y' mode (randomize weak columns)
+
+**Verify:** `test_ortho_drop.c` - 4 tests (d/z × B/no-B) ✓ PASSED
+**Reference:** `lobpcg.c:752-870` (zortho_randomize)
+
 ### ortho_randomize - REMOVED (superseded by ortho_drop)
 Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h declarations.
 
