@@ -108,6 +108,11 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 
 - [x] Add overdetermined guard (`m < n_u + n_v`)
 - [x] Replace fill_lower + full-matrix norm with upper-triangle-only `ortho_err_upper` helper
+- [x] Fix `ortho_err_upper`: check `|G_jj| ≈ 1` (not `G_jj ≈ +1`) for indefinite signature
+- [x] Normalize inner-loop error by `||U||^2` (matches reference ilobpcg.c:316)
+- [x] Replace manual `matrix_nrm` with BLAS `nrm2`
+- [ ] (Deferred) Have svqb return output B-Gram to avoid redundant `gram_self` after svqb
+- [ ] (Deferred) Column dropping / randomization for linearly dependent columns
 
 **Verify:** `test_ortho_indefinite.c` ✓ PASSED (4 diagonal-B + 4 permutation-B + 2 B=NULL tests)
 **Reference:** `ilobpcg.c:185-350` (zortho_randomize_indefinite)

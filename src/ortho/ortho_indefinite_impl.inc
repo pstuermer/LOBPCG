@@ -40,22 +40,13 @@ static void FN(fill_lower_oi)(uint64_t n, CTYPE *A) {
 #endif
 }
 
-/* Compute Frobenius norm of m x n matrix */
-static RTYPE FN(matrix_nrm)(uint64_t m, uint64_t n, const CTYPE *A) {
-  RTYPE sum = 0;
-  for (uint64_t i = 0; i < m * n; i++) {
-    RTYPE val = CABS(A[i]);
-    sum += val * val;
-  }
-  return sqrt(sum);
-}
-
-/* Compute ||G - I||_F from upper triangle of Hermitian G (n x n, lda = n) */
+/* Compute ||G - I_sig||_F from upper triangle of Hermitian G (n x n, lda = n)
+ * After SVQB with indefinite B, diag(G) ≈ ±1, so check |G_jj| ≈ 1 */
 static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
   RTYPE sum = 0;
   for (uint64_t j = 0; j < n; j++) {
-    /* Diagonal: |G_jj - 1|^2 */
-    RTYPE d = CABS(G[j + j * n] - (CTYPE)1);
+    /* Diagonal: (|G_jj| - 1)^2 — handles ±1 signature */
+    RTYPE d = CABS(G[j + j * n]) - (RTYPE)1;
     sum += d * d;
     /* Off-diagonal upper triangle: 2*|G_ij|^2 (accounts for lower) */
     for (uint64_t i = 0; i < j; i++) {
@@ -126,14 +117,14 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
   /* Compute ||B*V||_F for relative error calculation */
   RTYPE BV_norm;
   if (!B) {
-    BV_norm = FN(matrix_nrm)(m, n_v, V);
+    BV_norm = FN(nrm2)(m * n_v, V);
   } else {
     if (!sig_local) {
       /* sig was provided externally, need to compute B*V */
       FN(apply_block_op)(B, V, wrk1, m, n_v);
     }
     /* B*V already in wrk1 from gram_self above (if sig_local != NULL) */
-    BV_norm = FN(matrix_nrm)(m, n_v, wrk1);
+    BV_norm = FN(nrm2)(m * n_v, wrk1);
   }
   if (BV_norm < eps_ortho) BV_norm = (RTYPE)1;
 
@@ -162,20 +153,22 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
       /* svqb signature: (m, n, tau, drop, U, wrk1, wrk2, wrk3, B) */
       FN(svqb)(m, n_u, eps_drop, 'n', U, wrk1, wrk2, wrk3, B);
 
-      /* Check orthonormality: ||U^H*B*U - I||_F (upper triangle only) */
+      /* Check orthonormality: ||U^H*B*U - I_sig||_F / ||U||^2 */
       FN(gram_self)(U, m, n_u, B, wrk1, n_u, wrk2);
       RTYPE ortho_err = FN(ortho_err_upper)(n_u, wrk1);
+      RTYPE U_nrm = FN(nrm2)(m * n_u, U);
+      if (U_nrm < eps_ortho) U_nrm = (RTYPE)1;
 
-      if (ortho_err < eps_ortho) break;
+      if (ortho_err / (U_nrm * U_nrm) < eps_ortho) break;
     }
 
     /* Check ||V^H*B*U||_F for convergence */
     FN(gram_cross)(V, n_v, U, n_u, m, B, wrk3, n_v, wrk2);
 
-    RTYPE U_norm = FN(matrix_nrm)(m, n_u, U);
+    RTYPE U_norm = FN(nrm2)(m * n_u, U);
     if (U_norm < eps_ortho) U_norm = (RTYPE)1;
 
-    RTYPE VU_err = FN(matrix_nrm)(n_v, n_u, wrk3) / (BV_norm * U_norm);
+    RTYPE VU_err = FN(nrm2)(n_v * n_u, wrk3) / (BV_norm * U_norm);
     if (VU_err < eps_ortho) break;
   }
 
