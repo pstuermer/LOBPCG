@@ -78,15 +78,18 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   }
   FN(trsm_run)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
 
+  
+
   /* 6. Compute AS = A * S in wrk2 */
-  FN(apply_block_op)(A, S, wrk2, size, sizeSub);
+  FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
+  //  FN(apply_block_op)(A, S, wrk2, size, sizeSub);
 
   /* 7. Compute Ap = S^H * AS in wrk1 */
-#ifdef CTYPE_IS_COMPLEX
+  /*#ifdef CTYPE_IS_COMPLEX
   FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
 #else
   FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
-#endif
+  #endif*/
 
   /* 8. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R
    *    tmp = Ap * D_inv_R in wrk2 (reuse — only sizeSub x sizeSub needed) */

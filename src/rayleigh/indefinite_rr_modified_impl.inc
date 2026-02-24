@@ -24,55 +24,14 @@
 #endif
 
 #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #define CREAL(x) creal(x)
+#define CABS(x) cabs(x)
+#define CREAL(x) creal(x)
 #else
-  #define CABS(x) fabs(x)
-  #define CREAL(x) (x)
+#define CABS(x) fabs(x)
+#define CREAL(x) (x)
 #endif
 
-/* Bubble sort eigenvalues by signature (modified variant uses RTYPE eigvals) */
-static void FN(bubble_sort_sig_mod)(RTYPE *eigVal, int8_t *signature,
-                                     uint64_t *indices, uint64_t n) {
-    for (uint64_t i = 0; i < n; i++)
-        indices[i] = i;
-
-    for (uint64_t i = 0; i < n; i++) {
-        int swapped = 0;
-        for (uint64_t j = 0; j + 1 < n - i; j++) {
-            int8_t siga = signature[j];
-            int8_t sigb = signature[j + 1];
-            RTYPE ra = eigVal[j];
-            RTYPE rb = eigVal[j + 1];
-            int should_swap = 0;
-
-            if (siga > 0 && sigb > 0) {
-                should_swap = (ra > rb);
-            } else if (siga < 0 && sigb < 0) {
-                should_swap = (ra < rb);
-            } else if (siga < 0 && sigb > 0) {
-                should_swap = 1;
-            }
-
-            if (should_swap) {
-                RTYPE tmp_e = eigVal[j];
-                eigVal[j] = eigVal[j + 1];
-                eigVal[j + 1] = tmp_e;
-
-                int8_t tmp_s = signature[j];
-                signature[j] = signature[j + 1];
-                signature[j + 1] = tmp_s;
-
-                uint64_t tmp_i = indices[j];
-                indices[j] = indices[j + 1];
-                indices[j + 1] = tmp_i;
-
-                swapped = 1;
-            }
-        }
-        if (!swapped) break;
-    }
-}
+#include "bubble_sort_sig_impl.inc"
 
 /* Modified indefinite Rayleigh-Ritz
  *
@@ -97,161 +56,151 @@ static void FN(bubble_sort_sig_mod)(RTYPE *eigVal, int8_t *signature,
  *   wrk3: sizeSub x sizeSub
  *   wrk4: sizeSub x sizeSub
  */
-void FN(indefinite_rayleigh_ritz_modified)(
-    const uint64_t size, const uint64_t nx,
-    const uint64_t mult,
-    const uint64_t nconv, const uint64_t ndrop,
-    CTYPE *restrict S, CTYPE *restrict wrk1,
-    CTYPE *restrict wrk2, CTYPE *restrict wrk3, CTYPE *restrict wrk4,
-    CTYPE *restrict Cx, CTYPE *restrict Cp,
-    RTYPE *restrict eigVal, int8_t *restrict signature,
-    LINOP *A, LINOP *B) {
+void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
+					   const uint64_t mult, const uint64_t nconv,
+					   const uint64_t ndrop, CTYPE *restrict S,
+					   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
+					   CTYPE *restrict wrk3, CTYPE *restrict wrk4,
+					   CTYPE *restrict Cx, CTYPE *restrict Cp,
+					   RTYPE *restrict eigVal,
+					   int8_t *restrict signature,
+					   LINOP *A, LINOP *B) {
 
-    (void)nconv;
-    (void)ndrop;
+  (void)nconv;
+  (void)ndrop;
 
-    const uint64_t sizeSub = mult * nx;
-    const uint64_t ss = sizeSub * sizeSub;
+  const uint64_t sizeSub = mult * nx;
+  const uint64_t ss = sizeSub * sizeSub;
 
-    /* Internal allocations */
-    RTYPE *eigvals_all = xcalloc(sizeSub, sizeof(RTYPE));
-    int8_t *sig_all = xcalloc(sizeSub, sizeof(int8_t));
-    uint64_t *indices = xcalloc(sizeSub, sizeof(uint64_t));
-    CTYPE *tau = xcalloc(sizeSub, sizeof(CTYPE));
-    CTYPE *VR = xcalloc(ss, sizeof(CTYPE)); /* GGEV right eigenvectors */
+  /* Internal allocations */
+  RTYPE *eigvals_all = xcalloc(sizeSub, sizeof(RTYPE));
+  int8_t *sig_all = xcalloc(sizeSub, sizeof(int8_t));
+  uint64_t *indices = xcalloc(sizeSub, sizeof(uint64_t));
+  CTYPE *tau = xcalloc(sizeSub, sizeof(CTYPE));
+  CTYPE *VR = xcalloc(ss, sizeof(CTYPE)); /* GGEV right eigenvectors */
 #ifdef CTYPE_IS_COMPLEX
-    CTYPE *alpha = xcalloc(sizeSub, sizeof(CTYPE));
-    CTYPE *beta  = xcalloc(sizeSub, sizeof(CTYPE));
+  CTYPE *alpha = xcalloc(sizeSub, sizeof(CTYPE));
+  CTYPE *beta  = xcalloc(sizeSub, sizeof(CTYPE));
 #else
-    RTYPE *alphar = xcalloc(sizeSub, sizeof(RTYPE));
-    RTYPE *alphai = xcalloc(sizeSub, sizeof(RTYPE));
-    RTYPE *beta   = xcalloc(sizeSub, sizeof(RTYPE));
+  RTYPE *alphar = xcalloc(sizeSub, sizeof(RTYPE));
+  RTYPE *alphai = xcalloc(sizeSub, sizeof(RTYPE));
+  RTYPE *beta   = xcalloc(sizeSub, sizeof(RTYPE));
 #endif
 
-    /* 1. GA = S^H * A * S in wrk1 */
-    FN(apply_block_op)(A, S, wrk2, size, sizeSub);
+  /* 1. GA = S^H * A * S in wrk1 */
+  FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
+
+  /* 2. GB = S^H * B * S in wrk3 */
+  FN(gram_self)(S, size, sizeSub, B, wrk3, sizeSub, wrk2);
+
+  /* 3. Copy GA -> wrk4, GB -> wrk2 (GGEV destroys both) */
+  memcpy(wrk4, wrk1, ss * sizeof(CTYPE));
+  memcpy(wrk2, wrk3, ss * sizeof(CTYPE));
+
+  /* 4. GGEV */
 #ifdef CTYPE_IS_COMPLEX
-    FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+  if (0 != FN(ggev)(sizeSub, wrk4, wrk2, alpha, beta, VR)) {
+    fprintf(stderr, "indefinite_rayleigh_ritz_modified: GGEV failed\n");
+    goto cleanup;
+  }
 #else
-    FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+  if (0 != FN(ggev)(sizeSub, wrk4, wrk2, alphar, alphai, beta, VR)) {
+    fprintf(stderr, "indefinite_rayleigh_ritz_modified: GGEV failed\n");
+    goto cleanup;
+  }
 #endif
 
-    /* 2. GB = S^H * B * S in wrk3 */
-    FN(apply_block_op)(B, S, wrk2, size, sizeSub);
+  /* 5. Compute eigenvalues */
+  for (uint64_t i = 0; i < sizeSub; i++) {
 #ifdef CTYPE_IS_COMPLEX
-    FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk3);
+    CTYPE ev = alpha[i] / beta[i];
+    eigvals_all[i] = CREAL(ev);
 #else
-    FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk3);
+    if (CABS(beta[i]) > (RTYPE)1e-30)
+      eigvals_all[i] = alphar[i] / beta[i];
+    else
+      eigvals_all[i] = (alphar[i] >= 0) ? (RTYPE)1e30 : (RTYPE)-1e30;
+#endif
+  }
+
+  /* 6. B-normalize eigenvectors: V^H * GB * V
+   *    wrk3 still holds GB, VR holds eigenvectors */
+  FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
+#ifdef CTYPE_IS_COMPLEX
+  FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
+#else
+  FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #endif
 
-    /* 3. Copy GA -> wrk4, GB -> wrk2 (GGEV destroys both) */
-    memcpy(wrk4, wrk1, ss * sizeof(CTYPE));
-    memcpy(wrk2, wrk3, ss * sizeof(CTYPE));
+  for (uint64_t i = 0; i < sizeSub; i++) {
+    CTYPE diag_val = wrk4[i + i * sizeSub];
+    RTYPE abs_diag = CABS(diag_val);
 
-    /* 4. GGEV */
-#ifdef CTYPE_IS_COMPLEX
-    if (0 != FN(ggev)(sizeSub, wrk4, wrk2, alpha, beta, VR)) {
-        fprintf(stderr, "indefinite_rayleigh_ritz_modified: GGEV failed\n");
-        goto cleanup;
+    if (abs_diag > (RTYPE)1e-30) {
+      RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
+      for (uint64_t k = 0; k < sizeSub; k++)
+	VR[k + i * sizeSub] *= (CTYPE)scale;
     }
-#else
-    if (0 != FN(ggev)(sizeSub, wrk4, wrk2, alphar, alphai, beta, VR)) {
-        fprintf(stderr, "indefinite_rayleigh_ritz_modified: GGEV failed\n");
-        goto cleanup;
-    }
-#endif
 
-    /* 5. Compute eigenvalues */
+    sig_all[i] = (CREAL(diag_val) >= 0) ? 1 : -1;
+  }
+
+  /* 7. Sort by signature */
+  FN(bubble_sort_sig)(eigvals_all, sig_all, indices, sizeSub);
+
+  /* 8. Reorder VR columns according to sort permutation -> wrk1 as temp */
+  memcpy(wrk1, VR, ss * sizeof(CTYPE));
+  for (uint64_t j = 0; j < sizeSub; j++) {
+    memcpy(&VR[j * sizeSub], &wrk1[indices[j] * sizeSub],
+	   sizeSub * sizeof(CTYPE));
+  }
+
+  /* 9. Extract first nx eigenvalues and signature */
+  for (uint64_t i = 0; i < nx; i++)
+    eigVal[i] = eigvals_all[i];
+  for (uint64_t i = 0; i < sizeSub; i++)
+    signature[i] = sig_all[i];
+
+  /* 10. Extract Cx = first nx columns of sorted VR */
+  memset(Cx, 0, sizeSub * nx * sizeof(CTYPE));
+  for (uint64_t j = 0; j < nx; j++) {
     for (uint64_t i = 0; i < sizeSub; i++) {
+      Cx[i + j * sizeSub] = VR[i + j * sizeSub];
+    }
+  }
+
+  /* 11. Extract Cp via QR of Z2 (same pattern as rayleigh_ritz_modified)
+   *     Z2 = rows [nx : sizeSub] of first nx eigenvectors, transposed */
+  const uint64_t n_remainder = (mult - 1) * nx;
+  memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
+  for (uint64_t i = 0; i < nx; i++) {
+    for (uint64_t j = 0; j < n_remainder; j++) {
+      wrk2[i + j * nx] = VR[nx + j + i * sizeSub];
+    }
+  }
+
+  /* QR factorization of Z2^T (nx x n_remainder) */
+  if (0 != FN(geqrf)(nx, n_remainder, wrk2, tau)) {
+    fprintf(stderr, "indefinite_rayleigh_ritz_modified: geqrf failed\n");
+    goto cleanup;
+  }
+
+  uint64_t k = MIN(nx, n_remainder);
 #ifdef CTYPE_IS_COMPLEX
-        CTYPE ev = alpha[i] / beta[i];
-        eigvals_all[i] = CREAL(ev);
-#else
-        if (CABS(beta[i]) > (RTYPE)1e-30)
-            eigvals_all[i] = alphar[i] / beta[i];
-        else
-            eigvals_all[i] = (alphar[i] >= 0) ? (RTYPE)1e30 : (RTYPE)-1e30;
-#endif
-    }
-
-    /* 6. B-normalize eigenvectors: V^H * GB * V
-     *    wrk3 still holds GB, VR holds eigenvectors */
-    FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
-#ifdef CTYPE_IS_COMPLEX
-    FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
-#else
-    FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
-#endif
-
-    for (uint64_t i = 0; i < sizeSub; i++) {
-        CTYPE diag_val = wrk4[i + i * sizeSub];
-        RTYPE abs_diag = CABS(diag_val);
-
-        if (abs_diag > (RTYPE)1e-30) {
-            RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
-            for (uint64_t k = 0; k < sizeSub; k++)
-                VR[k + i * sizeSub] *= (CTYPE)scale;
-        }
-
-        sig_all[i] = (CREAL(diag_val) >= 0) ? 1 : -1;
-    }
-
-    /* 7. Sort by signature */
-    FN(bubble_sort_sig_mod)(eigvals_all, sig_all, indices, sizeSub);
-
-    /* 8. Reorder VR columns according to sort permutation -> wrk1 as temp */
-    memcpy(wrk1, VR, ss * sizeof(CTYPE));
-    for (uint64_t j = 0; j < sizeSub; j++) {
-        memcpy(&VR[j * sizeSub], &wrk1[indices[j] * sizeSub],
-               sizeSub * sizeof(CTYPE));
-    }
-
-    /* 9. Extract first nx eigenvalues and signature */
-    for (uint64_t i = 0; i < nx; i++)
-        eigVal[i] = eigvals_all[i];
-    for (uint64_t i = 0; i < sizeSub; i++)
-        signature[i] = sig_all[i];
-
-    /* 10. Extract Cx = first nx columns of sorted VR */
-    memset(Cx, 0, sizeSub * nx * sizeof(CTYPE));
-    for (uint64_t j = 0; j < nx; j++) {
-        for (uint64_t i = 0; i < sizeSub; i++) {
-            Cx[i + j * sizeSub] = VR[i + j * sizeSub];
-        }
-    }
-
-    /* 11. Extract Cp via QR of Z2 (same pattern as rayleigh_ritz_modified)
-     *     Z2 = rows [nx : sizeSub] of first nx eigenvectors, transposed */
-    const uint64_t n_remainder = (mult - 1) * nx;
-    memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
-    for (uint64_t i = 0; i < nx; i++) {
-        for (uint64_t j = 0; j < n_remainder; j++) {
-            wrk2[i + j * nx] = VR[nx + j + i * sizeSub];
-        }
-    }
-
-    /* QR factorization of Z2^T (nx x n_remainder) */
-    if (0 != FN(geqrf)(nx, n_remainder, wrk2, tau)) {
-        fprintf(stderr, "indefinite_rayleigh_ritz_modified: geqrf failed\n");
-        goto cleanup;
-    }
-
-    uint64_t k = MIN(nx, n_remainder);
-#ifdef CTYPE_IS_COMPLEX
-    if (0 != FN(ungqr)(nx, nx, k, wrk2, tau)) {
+  if (0 != FN(ungqr)(nx, nx, k, wrk2, tau)) {
 #else
     if (0 != FN(orgqr)(nx, nx, k, wrk2, tau)) {
 #endif
-        fprintf(stderr, "indefinite_rayleigh_ritz_modified: ungqr/orgqr failed\n");
-        goto cleanup;
+      fprintf(stderr, "indefinite_rayleigh_ritz_modified: ungqr/orgqr failed\n");
+      goto cleanup;
     }
 
     /* Extract columns nx onwards from sorted VR -> Cp_tmp */
     memset(Cp, 0, sizeSub * n_remainder * sizeof(CTYPE));
     for (uint64_t j = 0; j < n_remainder; j++) {
-        for (uint64_t i = 0; i < sizeSub; i++) {
-            Cp[i + j * sizeSub] = VR[i + (nx + j) * sizeSub];
-        }
+      for (uint64_t i = 0; i < sizeSub; i++) {
+	Cp[i + j * sizeSub] = VR[i + (nx + j) * sizeSub];
+      }
     }
 
     /* Cp_final = Cp_tmp * Q_orth
@@ -261,7 +210,7 @@ void FN(indefinite_rayleigh_ritz_modified)(
     memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
     FN(gemm_nn)(sizeSub, nx, nx, (CTYPE)1, wrk1, wrk2, (CTYPE)0, Cp);
 
-cleanup:
+  cleanup:
     safe_free((void**)&eigvals_all);
     safe_free((void**)&sig_all);
     safe_free((void**)&indices);
@@ -275,7 +224,7 @@ cleanup:
     safe_free((void**)&alphai);
     safe_free((void**)&beta);
 #endif
-}
+  }
 
 #undef CONCAT2
 #undef CONCAT

@@ -150,6 +150,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Implement `bubble_sort_sig()` - sort by signature
 
 **Verify:** `test_indefinite_rr.c` - 17 tests: diag/dense A × diag/perm B, basic/modified, d/s/z/c types ✓ PASSED
+- [x] Fixed `bubble_sort_sig()`: was sorting all eigenvalues ascending; now positive ascending, negative descending. Extracted to shared `bubble_sort_sig_impl.inc`
 
 ### K-based Rayleigh-Ritz (for klobpcg)
 - [x] K-based RR aliased to standard RR in `lobpcg.h` (algorithmically identical)
