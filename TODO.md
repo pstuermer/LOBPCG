@@ -229,6 +229,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Implement main iteration loop
 - [x] Fix S pointer layout: [X,W,P] → [X,P,W], removed setup_S
 - [x] Fix ortho_drop iter check: `if(1==iter)` → `if(0==iter)`
+- [x] Fix project_back aliasing bug: X aliases S, so two separate project_back calls corrupted S after first write; fused into single GEMM with [Cx|Cp] into wrk4, then memcpy back to [X,P]
 - [ ] Implement soft-locking (skip converged columns)
 - [x] Implement convergence checking
 - [ ] Support `cache_products` option for implicit product update

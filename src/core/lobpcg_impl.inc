@@ -174,9 +174,14 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     P = alg->S + size * sizeSub;
     W = alg->S + size * 2 * sizeSub;
 
-    /* Project back: X = S * Cx, P = S * Cp */
-    FN(project_back)(size, sizeSub, mult, alg->S, alg->Cx, X, alg->wrk4);
-    FN(project_back)(size, sizeSub, mult, alg->S, alg->Cp, P, alg->wrk4);
+    /* Project back: [X_new, P_new] = S * [Cx | Cp] via single GEMM
+     * X aliases S, so two separate project_back calls would corrupt S
+     * after the first write. Fuse into one GEMM into wrk4, then copy. */
+    uint64_t ms = mult * sizeSub;
+    memcpy(alg->wrk1, alg->Cx, ms * sizeSub * sizeof(CTYPE));
+    memcpy(alg->wrk1 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
+    FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S, alg->wrk1, (CTYPE)0, alg->wrk4);
+    memcpy(X, alg->wrk4, size * 2 * sizeSub * sizeof(CTYPE));
 
     /* Compute residual W = A*X - B*X*eigVal */
     FN(get_residual)(size, sizeSub, X, NULL, W, alg->eigVals, alg->wrk1, alg->A, alg->B);
