@@ -71,19 +71,19 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
   /* X, W, P live in alg->S but we use AS for assembled search space
    * to avoid aliasing issues when X/W/P overlap with S */
-  CTYPE *X = alg->S;
-  CTYPE *W = alg->S + size * sizeSub;
-  CTYPE *P = alg->S + size * 2 * sizeSub;
+  CTYPE *restrict X = alg->S;
+  CTYPE *restrict W = alg->S + size * sizeSub;
+  CTYPE *restrict P = alg->S + size * 2 * sizeSub;
 
   /* Estimate operator norms */
-  RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
-  RTYPE BNorm = FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2);
+  const RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
+  const RTYPE BNorm = FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2);
 
   /* Initialize eigenvectors if needed */
   // TODO: here a custom initialization would be good
   // also need to pay attention to inertia of these
   // vectors (see reference implementation)
-  RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
+  const RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
   if (x_norm < 1e-14) {
     FN(fill_random)(size * sizeSub, X);
   }
@@ -102,8 +102,12 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   FN(gemm_nn)(size, sizeSub, sizeSub, (CTYPE)1, X, alg->Cx, (CTYPE)0, alg->wrk4);
   memcpy(X, alg->wrk4, size * sizeSub * sizeof(CTYPE));
 
+  /* set AX (and later XAX) */
+  if (alg->AX)
+    FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+
   /* Compute initial residual W = A*X - B*X*eigVal */
-  FN(get_residual)(size, sizeSub, X, NULL, W, alg->eigVals, alg->wrk1,
+  FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals, alg->wrk1,
 		   alg->A, alg->B);
 
   /* Compute initial residual norms */
@@ -115,6 +119,11 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   /* Main iteration loop */
   alg->converged = 0;
   alg->iter = 0;
+  for (uint64_t i = 0; i < nev; i++) {
+    printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
+	     i, creal(alg->eigVals[i]), alg->resNorm[i]);
+  }
+  printf("\n");
 
   while (alg->iter < alg->maxIter) {
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
@@ -142,6 +151,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 			   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     }
 
+    // What the heck is going on here?
     /* Assemble search space S into AS buffer to avoid aliasing.
      * X, W, P point into alg->S, so we cannot assemble into alg->S directly
      * when the layout changes (iter>0 needs [X, P, W] but memory is [X, W, P]).
@@ -157,8 +167,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
     /* Modified indefinite Rayleigh-Ritz */
     int quality_flag = 1;
-    FN(indefinite_rayleigh_ritz_modified)(
-					  size, sizeSub, mult, alg->converged, 0,
+    FN(indefinite_rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0,
 					  S_asm, alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
 					  alg->Cx, alg->Cp, alg->BS, /* Cx_ortho */
 					  alg->eigVals, alg->signature,
@@ -170,14 +179,19 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
      * quality_flag == 5 (poor): Cx has accurate eigenvalue correspondence
      *   but may be poorly conditioned. Use Cx for residual (needs accurate λ),
      *   then Cx_ortho (= BS) for the iteration basis (needs stability). */
+    // Cx_ortho should not be saved in BS, but in wrk1
 
     /* X_new = S_asm * Cx -> wrk4 (accurate eigenvectors for residual) */
     FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->Cx,
 		(CTYPE)0, alg->wrk4);
     memcpy(X, alg->wrk4, size * sizeSub * sizeof(CTYPE));
 
+    // set AX
+    if (alg->AS)
+      FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+
     /* Compute residual W = A*X - B*X*eigVal */
-    FN(get_residual)(size, sizeSub, X, NULL, W, alg->eigVals, alg->wrk1,
+    FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals, alg->wrk1,
 		     alg->A, alg->B);
 
     /* Compute residual norms */
@@ -190,6 +204,15 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
       if (alg->resNorm[i] > alg->tol) break;
       alg->converged++;
     }
+
+    printf("Iteration %ld\t Converged Eigenpairs %ld/%ld\n",
+	   alg->iter, alg->converged, nev);
+    for (uint64_t i = 0; i < nev; i++) {
+      printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
+	     i, creal(alg->eigVals[i]), alg->resNorm[i]);
+    }
+    printf("\n");
+	     
 
     if (5 == quality_flag) {
       /* Overwrite X with well-conditioned basis for next iteration */

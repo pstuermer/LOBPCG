@@ -14,6 +14,8 @@
     ctype *restrict S;                              \
     ctype *restrict Cx;                             \
     ctype *restrict Cp;                             \
+						    \
+    ctype *restrict AX;				    \
                                                     \
     ctype *restrict AS;                             \
     ctype *restrict BS;                             \
@@ -26,6 +28,8 @@
     ctype *restrict wrk2;                           \
     ctype *restrict wrk3;                           \
     ctype *restrict wrk4;                           \
+						    \
+    int8_t implicit_product_update;		    \
                                                     \
     uint64_t iter;                                  \
     uint64_t nev;                                   \
@@ -517,19 +521,15 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
     alg->size = n;							\
     alg->sizeSub = sizeSub;						\
     alg->nev = nev;							\
-    uint64_t full_ = 3 * sizeSub;					\
-    uint64_t sq_   = full_ * full_;					\
-    uint64_t rect_ = n * full_;						\
-    uint64_t maxb_ = (sq_ > rect_) ? sq_ : rect_;			\
-    alg->S       = xcalloc(n * full_, sizeof(ctype));			\
-    alg->Cx      = xcalloc(sq_, sizeof(ctype));				\
-    alg->Cp      = xcalloc(sq_, sizeof(ctype));				\
+    alg->S = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->Cx = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
+    alg->Cp = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
     alg->eigVals = xcalloc(sizeSub, sizeof(rtype));			\
     alg->resNorm = xcalloc(sizeSub, sizeof(rtype));			\
-    alg->wrk1    = xcalloc(maxb_, sizeof(ctype));			\
-    alg->wrk2    = xcalloc(maxb_, sizeof(ctype));			\
-    alg->wrk3    = xcalloc(maxb_, sizeof(ctype));			\
-    alg->wrk4    = xcalloc(maxb_, sizeof(ctype));			\
+    alg->wrk1 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->wrk2 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->wrk3 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->wrk4 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
     return alg;								\
   }
 
@@ -575,11 +575,9 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
   static inline prefix##_lobpcg_t *prefix##_ilobpcg_alloc(		\
       		      uint64_t n, uint64_t nev, uint64_t sizeSub) {     \
     prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev, sizeSub);	\
-    /* Reallocate Cp larger for indefinite: 3*nev × 2*nev */		\
-    safe_free((void**)&alg->Cp);					\
-    alg->Cp        = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));	\
-    alg->AS        = xcalloc(3*n*sizeSub, sizeof(ctype));		\
-    alg->BS        = xcalloc(3*sizeSub*sizeSub, sizeof(ctype));		\
+    /*    alg->AS        = xcalloc(3*n*sizeSub, sizeof(ctype));		\
+    alg->BS        = xcalloc(3*sizeSub*sizeSub, sizeof(ctype));*/	\
+    alg->AX = xcalloc(n*sizeSub, sizeof(ctype));			\
     alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
     return alg;								\
   }

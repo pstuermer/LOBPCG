@@ -252,8 +252,11 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Use ortho_indefinite for B-orthogonalization
 - [x] Create instantiation files
 
-**Verify:** `test_ilobpcg.c` - 2 tests: diagonal indefinite + block-Laplacian with block-permutation B ✓ PASSED
+**Verify:** `test_ilobpcg.c` - 2 tests: d/z block-Laplacian with block-permutation B ✓ PASSED
 - [x] Unified test macros (TEST/RUN/ASSERT/ASSERT_NEAR), use `d_ilobpcg_alloc`/`d_lobpcg_free`
+- [x] Removed diagonal B test (not target problem structure)
+- [x] B-positive initialization: random vectors projected into V+ = {[u;u]} (average top/bottom halves)
+- [x] Added z_ilobpcg_block_laplacian test (complex double)
 
 ---
 
