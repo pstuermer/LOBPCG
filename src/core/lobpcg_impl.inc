@@ -78,13 +78,13 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
   const RTYPE eps_drop = 1e-12;
 
   /* Pointers into S = [X, P, W] */
-  CTYPE *X = alg->S;
-  CTYPE *P = alg->S + size * sizeSub;
-  CTYPE *W = alg->S + size * 2 * sizeSub;
+  CTYPE *restrict X = alg->S;
+  CTYPE *restrict P = alg->S + size * sizeSub;
+  CTYPE *restrict W = alg->S + size * 2 * sizeSub;
 
   /* Estimate operator norms */
-  RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
-  RTYPE BNorm = (NULL != alg->B) ? FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2) : (RTYPE)1;
+  const RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
+  const RTYPE BNorm = (NULL != alg->B) ? FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2) : (RTYPE)1;
 
   printf("F-Norm: %.5e %.5e\n", ANorm, BNorm);
 
@@ -101,14 +101,18 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
   /* Project back: X = X * Cx */
   FN(project_back)(size, sizeSub, 1, X, alg->Cx, X, alg->wrk4);
 
+  /* set AX (and later XAX) */
+  if (alg->AX)
+    FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+
   /* Compute initial residual W = A*X - B*X*eigVal */
-  FN(get_residual)(size, sizeSub, X, NULL, W, alg->eigVals, alg->wrk1, alg->A, alg->B);
+  FN(get_residual)(size, sizeSub, X, alg->AX, W,
+		   alg->eigVals, alg->wrk1, alg->A, alg->B);
 
   /* Compute initial residual norms */
   FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
 			alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
-  // TODO: print current eigenvalues and residual norm
-
+  
   for (uint64_t i = 0; i < nev; i++) {
     printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
 	   i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
@@ -140,9 +144,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     }
 
     /* At iter==0, copy W into P slot so S[0:2*sizeSub] = [X, W] for mult=2 RR */
-    if (0 == alg->iter) {
-      memcpy(P, W, size * sizeSub * sizeof(CTYPE));
-    }
+    if (0 == alg->iter)
+      memcpy(P, W, size*sizeSub * sizeof(CTYPE));
 
     /* Modified Rayleigh-Ritz */
     FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
@@ -174,17 +177,20 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     P = alg->S + size * sizeSub;
     W = alg->S + size * 2 * sizeSub;
 
-    /* Project back: [X_new, P_new] = S * [Cx | Cp] via single GEMM
-     * X aliases S, so two separate project_back calls would corrupt S
-     * after the first write. Fuse into one GEMM into wrk4, then copy. */
+    /* Project back: [X_new, P_new] = S * [Cx | Cp] via single GEMM */
     uint64_t ms = mult * sizeSub;
     memcpy(alg->wrk1, alg->Cx, ms * sizeSub * sizeof(CTYPE));
     memcpy(alg->wrk1 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
     FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S, alg->wrk1, (CTYPE)0, alg->wrk4);
-    memcpy(X, alg->wrk4, size * 2 * sizeSub * sizeof(CTYPE));
+    memcpy(alg->S, alg->wrk4, size * 2 * sizeSub * sizeof(CTYPE));
+
+    // set AX
+    if (alg->AX)
+      FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
 
     /* Compute residual W = A*X - B*X*eigVal */
-    FN(get_residual)(size, sizeSub, X, NULL, W, alg->eigVals, alg->wrk1, alg->A, alg->B);
+    FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals,
+		     alg->wrk1, alg->A, alg->B);
 
     /* Compute residual norms */
     FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,

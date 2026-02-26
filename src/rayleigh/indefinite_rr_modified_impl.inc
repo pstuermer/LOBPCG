@@ -66,7 +66,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 					   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
 					   CTYPE *restrict wrk3, CTYPE *restrict wrk4,
 					   CTYPE *restrict Cx, CTYPE *restrict Cp,
-					   CTYPE *restrict Cx_ortho,
+					   CTYPE *Cx_ortho,
 					   RTYPE *restrict eigVal,
 					   int8_t *restrict signature,
 					   int *restrict quality_flag,
@@ -200,13 +200,17 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 
   /* 12. Cx_ortho + quality_flag:
    *     If GGEV eigenvectors are well-conditioned, Cx_ortho = Cx.
-   *     Otherwise B-orthogonalize via svqb_mat (wrk3=GB still valid). */
-  memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));
+   *     Otherwise B-orthogonalize Cx in-place via svqb_mat, save result to
+   *     Cx_ortho, then restore accurate Cx from VR (dead after step 10). */
   if (quality_ok) {
+    memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));
     *quality_flag = 1;
   } else {
-    /* wrk3=GB (read-only in svqb_mat); wrk1, wrk2, wrk4 free to clobber */
-    FN(svqb_mat)(sizeSub, nx, (RTYPE)1e-12, 'n', Cx_ortho, wrk3, wrk1, wrk2, wrk4);
+    memcpy(VR, Cx, sizeSub * nx * sizeof(CTYPE));           /* save accurate Cx */
+    FN(svqb_mat)(sizeSub, nx, (RTYPE)1e-12, 'n',
+                 Cx, wrk3, wrk1, wrk2, wrk4);               /* ortho Cx in-place */
+    memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));     /* result -> Cx_ortho */
+    memcpy(Cx, VR, sizeSub * nx * sizeof(CTYPE));           /* restore accurate Cx */
     *quality_flag = 5;
   }
 

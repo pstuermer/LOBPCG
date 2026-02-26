@@ -377,7 +377,7 @@ TYPE_LIST(DECLARE_INDEF_RR)
       ctype *restrict S, ctype *restrict wrk1,                           \
       ctype *restrict wrk2, ctype *restrict wrk3, ctype *restrict wrk4, \
       ctype *restrict Cx, ctype *restrict Cp,                            \
-      ctype *restrict Cx_ortho,                                          \
+      ctype *Cx_ortho,                                                   \
       rtype *restrict eigVal, int8_t *restrict signature,                \
       int *restrict quality_flag,                                        \
       linop *A, linop *B);
@@ -545,6 +545,7 @@ TYPE_LIST(DEFINE_LOBPCG_ALLOC)
     safe_free((void**)&(*alg)->S);                                          \
     safe_free((void**)&(*alg)->Cx);                                         \
     safe_free((void**)&(*alg)->Cp);                                         \
+    safe_free((void**)&(*alg)->AX);                                         \
     safe_free((void**)&(*alg)->AS);                                         \
     safe_free((void**)&(*alg)->BS);                                         \
     safe_free((void**)&(*alg)->eigVals);                                    \

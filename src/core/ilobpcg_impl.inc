@@ -44,12 +44,11 @@
  *   alg->converged: number of converged eigenpairs
  *
  * Workspace layout:
- *   alg->S:    size * 3*sizeSub  (X, W, P stored in-place)
- *   alg->AS:   size * 3*sizeSub  (assembled search space, avoids aliasing)
- *   alg->BS:   size * sizeSub    (temp for project_back)
+ *   alg->S:    size * 3*sizeSub  (X, P, W stored contiguously)
+ *   alg->AX:   size * sizeSub    (precomputed A*X, optional)
  *   alg->Cx:   3*sizeSub * sizeSub
  *   alg->Cp:   3*sizeSub * 2*sizeSub
- *   alg->wrk1: size * 3*sizeSub
+ *   alg->wrk1: size * 3*sizeSub  (holds Cx_ortho after modified RR)
  *   alg->wrk2: size * 3*sizeSub
  *   alg->wrk3: 3*sizeSub * 3*sizeSub
  *   alg->wrk4: size * 3*sizeSub
@@ -69,11 +68,11 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     return;
   }
 
-  /* X, W, P live in alg->S but we use AS for assembled search space
-   * to avoid aliasing issues when X/W/P overlap with S */
+  /* X, P, W live contiguously in alg->S: [X | P | W]
+   * iter==0 uses [X, W] (mult=2), iter>0 uses [X, P, W] (mult=3) */
   CTYPE *restrict X = alg->S;
-  CTYPE *restrict W = alg->S + size * sizeSub;
-  CTYPE *restrict P = alg->S + size * 2 * sizeSub;
+  CTYPE *restrict P = alg->S + size * sizeSub;
+  CTYPE *restrict W = alg->S + size * 2 * sizeSub;
 
   /* Estimate operator norms */
   const RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
@@ -114,16 +113,15 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
 			alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
 
-  // TODO: Print residualnorm and eigenvalues
-
-  /* Main iteration loop */
-  alg->converged = 0;
-  alg->iter = 0;
   for (uint64_t i = 0; i < nev; i++) {
     printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
 	     i, creal(alg->eigVals[i]), alg->resNorm[i]);
   }
   printf("\n");
+
+  /* Main iteration loop */
+  alg->converged = 0;
+  alg->iter = 0;
 
   while (alg->iter < alg->maxIter) {
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
@@ -142,61 +140,66 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 			   W, X, NULL,
 			   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     } else {
-      /* Assemble [X, P] in wrk4 for ortho reference basis */
-      memcpy(alg->wrk4, X, size * sizeSub * sizeof(CTYPE));
-      memcpy(alg->wrk4 + size * sizeSub, P, size * sizeSub * sizeof(CTYPE));
       FN(ortho_indefinite)(size, sizeSub, 2 * sizeSub,
 			   eps_ortho, eps_drop,
-			   W, alg->wrk4, NULL,
+			   W, alg->S, NULL,
 			   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     }
 
-    // What the heck is going on here?
-    /* Assemble search space S into AS buffer to avoid aliasing.
-     * X, W, P point into alg->S, so we cannot assemble into alg->S directly
-     * when the layout changes (iter>0 needs [X, P, W] but memory is [X, W, P]).
-     * Use alg->AS as the assembled search space. */
-    CTYPE *S_asm = alg->AS;
-    memcpy(S_asm, X, size * sizeSub * sizeof(CTYPE));
-    if (0 == alg->iter) {
-      memcpy(S_asm + size * sizeSub, W, size * sizeSub * sizeof(CTYPE));
-    } else {
-      memcpy(S_asm + size * sizeSub, P, size * sizeSub * sizeof(CTYPE));
-      memcpy(S_asm + size * 2 * sizeSub, W, size * sizeSub * sizeof(CTYPE));
-    }
+    /* At iter==0, copy W into P slot so S[0:2*sizeSub] = [X,W] for mult=2 RR */
+    if (0 == alg->iter)
+      memcpy(P, W, size*sizeSub * sizeof(CTYPE));
 
-    /* Modified indefinite Rayleigh-Ritz */
+    /* Modified indefinite Rayleigh-Ritz
+     * Cx_ortho reuses wrk1 storage (pure output, written only after wrk1 is dead) */
+    CTYPE *Cx_ortho = alg->wrk1;
     int quality_flag = 1;
     FN(indefinite_rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0,
-					  S_asm, alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
-					  alg->Cx, alg->Cp, alg->BS, /* Cx_ortho */
+					  alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
+					  alg->Cx, alg->Cp, Cx_ortho,
 					  alg->eigVals, alg->signature,
 					  &quality_flag, alg->A, alg->B);
+
+    /* redefine P and W after first iteration */
+    P = alg->S + size*sizeSub;
+    W = alg->S + size*2*sizeSub;
 
     /* Two-path projection depending on eigenvector quality.
      *
      * quality_flag == 1 (good): Cx is well-conditioned, use directly.
      * quality_flag == 5 (poor): Cx has accurate eigenvalue correspondence
      *   but may be poorly conditioned. Use Cx for residual (needs accurate λ),
-     *   then Cx_ortho (= BS) for the iteration basis (needs stability). */
-    // Cx_ortho should not be saved in BS, but in wrk1
+     *   then Cx_ortho (= wrk1) for the iteration basis (needs stability). */
 
-    /* X_new = S_asm * Cx -> wrk4 (accurate eigenvectors for residual) */
-    FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->Cx,
-		(CTYPE)0, alg->wrk4);
-    memcpy(X, alg->wrk4, size * sizeSub * sizeof(CTYPE));
+    if (1 == quality_flag) {
+      const uint64_t ms = mult*sizeSub;
+      memcpy(alg->wrk2, alg->Cx, ms*sizeSub * sizeof(CTYPE));
+      memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
+		  alg->wrk2, (CTYPE)0, alg->wrk4);
+      memcpy(alg->S, alg->wrk4, 2*size*sizeSub * sizeof(CTYPE));
 
-    // set AX
-    if (alg->AS)
-      FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+      if (alg->AX)
+	FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
 
-    /* Compute residual W = A*X - B*X*eigVal */
-    FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals, alg->wrk1,
-		     alg->A, alg->B);
+      FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals,
+		       alg->wrk1, alg->A, alg->B);
 
-    /* Compute residual norms */
-    FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
-			  alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
+      FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
+			    alg->wrk1, alg->wrk2, alg->wrk3,
+			    ANorm, BNorm, alg->B);
+    } else if (5 == quality_flag) {
+      const uint64_t ms = mult*sizeSub;
+      FN(gemm_nn)(size, sizeSub, ms, (CTYPE)1, alg->S,
+		  alg->Cx, (CTYPE)0, alg->wrk4);
+
+      FN(get_residual)(size, sizeSub, alg->wrk4, NULL, W, alg->eigVals,
+		       alg->wrk2, alg->A, alg->B);
+
+      FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
+			    alg->wrk2, alg->wrk1, alg->wrk3,
+			    ANorm, BNorm, alg->B);
+    }
 
     /* Check convergence */
     alg->converged = 0;
@@ -216,15 +219,17 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
     if (5 == quality_flag) {
       /* Overwrite X with well-conditioned basis for next iteration */
-      FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->BS,
-		  (CTYPE)0, alg->wrk4);
-      memcpy(X, alg->wrk4, size * sizeSub * sizeof(CTYPE));
-    }
+      const uint64_t ms = mult*sizeSub;
+      memcpy(alg->wrk2, alg->wrk1, ms*sizeSub * sizeof(CTYPE));
+      memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
+		  alg->wrk2, (CTYPE)0, alg->wrk4);
+      memcpy(alg->S, alg->wrk4, 2*size*sizeSub * sizeof(CTYPE));
 
-    /* P_new = S_asm * Cp -> wrk4, then copy to P */
-    FN(gemm_nn)(size, sizeSub, mult * sizeSub, (CTYPE)1, S_asm, alg->Cp,
-		(CTYPE)0, alg->wrk4);
-    memcpy(P, alg->wrk4, size * sizeSub * sizeof(CTYPE));
+      if (alg->AX)
+	FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+
+    }
 
     if (alg->converged == nev) {
       break;
