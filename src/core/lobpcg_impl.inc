@@ -149,7 +149,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
     /* Modified Rayleigh-Ritz */
     FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
-			       alg->S, alg->wrk1, alg->wrk2, alg->wrk3,
+			       alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
 			       alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
 
     /* If condition check failed: set useOrtho and retry */
@@ -169,7 +169,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
       }
       /* Retry RR with useOrtho=1 */
       FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
-				 alg->S, alg->wrk1, alg->wrk2, alg->wrk3,
+				 alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
 				 alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
     }
 

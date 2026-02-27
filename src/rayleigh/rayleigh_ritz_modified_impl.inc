@@ -46,8 +46,9 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
                                 const uint64_t mult,
                                 const uint64_t nconv, const uint64_t ndrop,
                                 uint8_t *useOrtho,
-                                CTYPE *restrict S, CTYPE *restrict wrk1,
-                                CTYPE *restrict wrk2, CTYPE *restrict wrk3,
+                                CTYPE *restrict S, const CTYPE *restrict AX,
+				CTYPE *restrict wrk1, CTYPE *restrict wrk2,
+				CTYPE *restrict wrk3,
                                 CTYPE *restrict Cx, CTYPE *restrict Cp,
                                 RTYPE *restrict eigVal,
                                 LINOP *A, LINOP *B) {
@@ -60,8 +61,8 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
   const uint64_t sizeSub = mult * nx;
   const uint64_t n_remainder = (mult - 1) * nx;
 
-  RTYPE *eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
-  CTYPE *tau = xcalloc(sizeSub, sizeof(CTYPE));
+  RTYPE *restrict eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
+  CTYPE *restrict tau = xcalloc(sizeSub, sizeof(CTYPE));
 
   /* ================================================================
    * Ortho branch: useOrtho==1
@@ -71,7 +72,16 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     *useOrtho = 1;
 
     memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
-    FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
+    if (AX) {
+      FN(apply_block_op)(A, &S[size*nx], &wrk2[size*nx], size, n_remainder);
+      memcpy(wrk2, AX, size * nx * sizeof(CTYPE));
+#ifdef CTYPE_IS_COMPLEX
+      FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+#else
+      FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+#endif
+    } else
+      FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
 
     /* Eigensolve on full sizeSub x sizeSub matrix */
     if (0 != FN(eig)(sizeSub, wrk1, eigvals_r)) {
@@ -198,8 +208,17 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     }
     FN(trsm_run)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
 
-    /* 7. Compute AS = A * S in wrk2 */
-    FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
+    /* 7. A-gram: wrk1 = S^H * A * S */
+    if (AX) {
+      FN(apply_block_op)(A, &S[size*nx], &wrk2[size*nx], size, n_remainder);
+      memcpy(wrk2, AX, size * nx * sizeof(CTYPE));
+#ifdef CTYPE_IS_COMPLEX
+      FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+#else
+      FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+#endif
+    } else
+      FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
 
     /* 9. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R */
     FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3, (CTYPE)0, Cx);

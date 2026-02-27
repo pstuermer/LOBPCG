@@ -410,7 +410,7 @@ TEST(d_rr_modified_ortho) {
 
     uint8_t useOrtho = 1;
     d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
 
     ASSERT(1 == useOrtho);
 
@@ -462,7 +462,7 @@ TEST(z_rr_modified_ortho) {
 
     uint8_t useOrtho = 1;
     z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
 
     ASSERT(1 == useOrtho);
 
@@ -512,7 +512,7 @@ TEST(d_rr_modified_chol) {
 
     uint8_t useOrtho = 0;
     d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
 
     ASSERT(0 == useOrtho);
 
@@ -571,7 +571,7 @@ TEST(z_rr_modified_chol) {
 
     uint8_t useOrtho = 0;
     z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
 
     ASSERT(0 == useOrtho);
 
@@ -629,7 +629,7 @@ TEST(d_rr_modified_mult3) {
 
     uint8_t useOrtho = 1;
     d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
 
     ASSERT(1 == useOrtho);
 

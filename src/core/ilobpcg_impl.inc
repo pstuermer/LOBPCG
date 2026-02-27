@@ -155,7 +155,8 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     CTYPE *Cx_ortho = alg->wrk1;
     int quality_flag = 1;
     FN(indefinite_rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0,
-					  alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
+					  alg->S, alg->AX,
+					  alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
 					  alg->Cx, alg->Cp, Cx_ortho,
 					  alg->eigVals, alg->signature,
 					  &quality_flag, alg->A, alg->B);

@@ -62,7 +62,7 @@
  */
 void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
 					   const uint64_t mult, const uint64_t nconv,
-					   const uint64_t ndrop, CTYPE *restrict S,
+					   const uint64_t ndrop, CTYPE *restrict S, const CTYPE *restrict AX,
 					   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
 					   CTYPE *restrict wrk3, CTYPE *restrict wrk4,
 					   CTYPE *restrict Cx, CTYPE *restrict Cp,
@@ -76,6 +76,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   (void)ndrop;
 
   const uint64_t sizeSub = mult * nx;
+  const uint64_t n_remainder = (mult - 1) * nx;
   const uint64_t ss = sizeSub * sizeSub;
 
   /* Internal allocations */
@@ -93,7 +94,16 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 #endif
 
   /* 1. GA = S^H * A * S in wrk1 */
-  FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
+  if (AX) {
+    FN(apply_block_op)(A, &S[size*nx], &wrk2[size*nx], size, n_remainder);
+    memcpy(wrk2, AX, size * nx * sizeof(CTYPE));
+#ifdef CTYPE_IS_COMPLEX
+    FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+#else
+    FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
+#endif
+  } else
+    FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
 
   /* 2. GB = S^H * B * S in wrk3 */
   FN(gram_self)(S, size, sizeSub, B, wrk3, sizeSub, wrk2);
@@ -191,7 +201,6 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 
   /* 11. Extract Cp = [0; Z2]: top nx rows zero, rows [nx:sizeSub] from Cx */
   {
-    const uint64_t n_remainder = (mult - 1) * nx;
     memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
     for (uint64_t j = 0; j < nx; j++)
       memcpy(&Cp[nx + j * sizeSub], &Cx[nx + j * sizeSub],

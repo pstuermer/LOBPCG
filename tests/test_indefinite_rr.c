@@ -504,7 +504,7 @@ TEST(d_indef_rr_modified_diag) {
     f64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(f64));
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     f64 expected_eig[] = {1.0, 2.0, 3.0};
@@ -569,7 +569,7 @@ TEST(d_indef_rr_modified_diag_mult3) {
     f64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(f64));
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     f64 expected_eig[] = {1.0, 2.0, 3.0};
@@ -626,7 +626,7 @@ TEST(z_indef_rr_modified_diag) {
     c64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(c64));
 
     z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     f64 expected_eig[] = {1.0, 2.0, 3.0};
@@ -798,7 +798,7 @@ TEST(d_indef_rr_modified_perm) {
     f64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(f64));
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, B);
 
     f64 expected_eig[] = {sqrt(2.0), 2.0*sqrt(3.0), sqrt(30.0)};
@@ -847,7 +847,7 @@ TEST(z_indef_rr_modified_perm) {
     c64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(c64));
 
     z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, B);
 
     f64 expected_eig[] = {sqrt(2.0), 2.0*sqrt(3.0), sqrt(30.0)};
@@ -1038,7 +1038,7 @@ TEST(d_indef_rr_modified_dense) {
     f64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(f64));
 
     d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     /* Reconstruct X = S * Cx */
@@ -1100,7 +1100,7 @@ TEST(z_indef_rr_modified_dense) {
     c64 *wrk4 = xcalloc(sizeSub * sizeSub, sizeof(c64));
 
     z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
-                                         S, wrk1, wrk2, wrk3, wrk4,
+                                         S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag, &A, &B);
 
     c64 *X = xcalloc(n * nev, sizeof(c64));
