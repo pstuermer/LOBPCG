@@ -101,7 +101,8 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   /* 5. Compute eigenvalues: eigVal[i] = Re(alpha[i] / beta[i]) */
   for (uint64_t i = 0; i < sizeSub; i++) {
 #ifdef CTYPE_IS_COMPLEX
-    eigVal[i] = CREAL(alpha[i] / beta[i]);
+    if (CABS(beta[i]) > (RTYPE)1e-30)
+      eigVal[i] = CREAL(alpha[i] / beta[i]);
 #else
     if (CABS(beta[i]) > (RTYPE)1e-30)
       eigVal[i] = alphar[i] / beta[i];
