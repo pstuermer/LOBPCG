@@ -273,6 +273,13 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 
 ---
 
+### Test Infrastructure
+- [x] Extract shared test macros (TEST/RUN/ASSERT/ASSERT_NEAR) to `tests/test_macros.h`
+- [x] Fix RUN macro: was unconditionally printing [PASS] after assertion failure; now checks tests_failed delta
+- [x] Replace duplicated macros across 11 test files with `#include "test_macros.h"`
+
+---
+
 ## Refactoring
 
 ### Gram matrix helpers

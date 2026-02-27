@@ -129,13 +129,15 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   for (uint64_t i = 0; i < sizeSub; i++) {
 #ifdef CTYPE_IS_COMPLEX
     if (CABS(beta[i]) > (RTYPE)1e-30)
-      eigvals_all[i] = CREAL(alpah[i] / beta[i]);
+      eigvals_all[i] = CREAL(alpha[i] / beta[i]);
+    else
+      eigvals_all[i] = (CREAL(alpha[i]) >= 0) ? (RTYPE)1e30 : (RTYPE)-1e30;
 #else
     if (CABS(beta[i]) > (RTYPE)1e-30)
       eigvals_all[i] = alphar[i] / beta[i];
-#endif
     else
       eigvals_all[i] = (alphar[i] >= 0) ? (RTYPE)1e30 : (RTYPE)-1e30;
+#endif
   }
 
   /* 6. B-normalize eigenvectors: V^H * GB * V

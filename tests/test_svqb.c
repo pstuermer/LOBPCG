@@ -18,26 +18,7 @@
 #define TOL_F32 1e-5
 #define TOL_F64 1e-12
 
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define TEST(name) static void test_##name(void)
-#define RUN(name) do { \
-    printf("  %-50s ", #name); \
-    test_##name(); \
-    printf("[PASS]\n"); \
-    tests_passed++; \
-} while(0)
-
-#define ASSERT(cond) do { \
-    if (!(cond)) { \
-        printf("[FAIL] line %d: %s\n", __LINE__, #cond); \
-        tests_failed++; \
-        return; \
-    } \
-} while(0)
-
-#define ASSERT_NEAR(a, b, tol) ASSERT(fabs((a) - (b)) < (tol))
+#include "test_macros.h"
 
 /* Fill matrix with random values */
 static void fill_random_d(uint64_t n, f64 *x) {

@@ -21,24 +21,7 @@
 #include "lobpcg/blas_wrapper.h"
 #include "lobpcg/memory.h"
 
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define TEST(name) static void test_##name(void)
-#define RUN(name) do { \
-    printf("  %-50s ", #name); \
-    test_##name(); \
-    printf("[PASS]\n"); \
-    tests_passed++; \
-} while(0)
-
-#define ASSERT(cond) do { \
-    if (!(cond)) { \
-        printf("[FAIL] line %d: %s\n", __LINE__, #cond); \
-        tests_failed++; \
-        return; \
-    } \
-} while(0)
+#include "test_macros.h"
 
 #define TEST_TOL_D 1e-10
 #define TEST_TOL_S 1e-4
