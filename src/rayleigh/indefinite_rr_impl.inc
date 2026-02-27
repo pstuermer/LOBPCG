@@ -106,10 +106,10 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
 #else
     if (CABS(beta[i]) > (RTYPE)1e-30)
       eigVal[i] = alphar[i] / beta[i];
-
+#endif
     else
       eigVal[i] = (alphar[i] >= 0) ? (RTYPE)1e30 : (RTYPE)-1e30;
-#endif
+
   }
 
   /* 6. Normalize eigenvectors by B-inner product
