@@ -524,6 +524,7 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
     alg->sizeSub = sizeSub;						\
     alg->nev = nev;							\
     alg->S = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->AX = xcalloc(n*sizeSub, sizeof(ctype));			\
     alg->Cx = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
     alg->Cp = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
     alg->eigVals = xcalloc(sizeSub, sizeof(rtype));			\
@@ -578,9 +579,6 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
   static inline prefix##_lobpcg_t *prefix##_ilobpcg_alloc(		\
       		      uint64_t n, uint64_t nev, uint64_t sizeSub) {     \
     prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev, sizeSub);	\
-    /*    alg->AS        = xcalloc(3*n*sizeSub, sizeof(ctype));		\
-    alg->BS        = xcalloc(3*sizeSub*sizeSub, sizeof(ctype));*/	\
-    alg->AX = xcalloc(n*sizeSub, sizeof(ctype));			\
     alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
     return alg;								\
   }
@@ -588,6 +586,7 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
 TYPE_LIST(DEFINE_ILOBPCG_ALLOC)
 #undef DEFINE_ILOBPCG_ALLOC
 
-#define ilobpcg_alloc(n, nev, prefix) prefix##_ilobpcg_alloc(n, nev)
+#define ilobpcg_alloc(n, nev, sizeSub, prefix) \
+  prefix##_ilobpcg_alloc(n, nev, sizeSub)
 
 #endif /* LOBPCG_H */
