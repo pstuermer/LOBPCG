@@ -68,9 +68,9 @@ static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
  * @param U         [in/out] m x n_u candidate basis, B-orthonormalized on output
  * @param V         [in] m x n_v B-orthonormal external basis
  * @param sig       [in] n_v x n_v signature matrix. If NULL, computed as V^H*B*V
- * @param wrk1      Workspace: m * max(n_u, n_v) for B*V or B*U storage
- * @param wrk2      Workspace: m * max(n_u, n_v) for intermediate storage
- * @param wrk3      Workspace: max(n_v * n_u, n_v * n_v, n_u * n_u) for coef matrices
+ * @param wrk1      Workspace: m * max(n_u, n_v) — gram result / sig*coef temp / svqb scratch
+ * @param wrk2      Workspace: m * max(n_u, n_v) — gram scratch (holds B*U after gram_self)
+ * @param wrk3      Workspace: max(n_v * n_u, n_v * n_v, n_u * n_u) — cross-gram result / svqb scratch
  * @param B         Indefinite B operator (NULL = identity)
  *
  * @return Number of columns dropped from U (always 0 for now)
@@ -98,7 +98,11 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
 			      LINOP *B)
 {
   if (0 == n_u || 0 == n_v) return 0;
-  if (m < n_u + n_v) return 0;
+  if (m < n_u + n_v) {
+    fprintf(stderr, "ortho_indefinite: overdetermined m=%lu < n_u+n_v=%lu+%lu\n",
+	    (unsigned long)m, (unsigned long)n_u, (unsigned long)n_v);
+    return 0;
+  }
 
   const uint64_t max_outer = 3;
   const uint64_t max_inner = 3;
@@ -139,13 +143,8 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
     CTYPE *tmp = wrk1;  /* Reuse wrk1 for this small matrix */
     FN(gemm_nn)(n_v, n_u, n_v, (CTYPE)1, sig, wrk3, (CTYPE)0, tmp);
 
-    /* U = U - V * tmp */
-    /* wrk2 = V * tmp (m x n_u) */
-    FN(gemm_nn)(m, n_u, n_v, (CTYPE)1, V, tmp, (CTYPE)0, wrk2);
-
-    /* U = U - wrk2 */
-    for (uint64_t i = 0; i < m * n_u; i++)
-      U[i] -= wrk2[i];
+    /* U = U - V * tmp (fused into single GEMM) */
+    FN(gemm_nn)(m, n_u, n_v, (CTYPE)(-1), V, tmp, (CTYPE)1, U);
 
     /* Inner iterations: B-orthonormalize U via SVQB */
     for (uint64_t inner = 0; inner < max_inner; inner++) {
@@ -153,7 +152,11 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
       /* svqb signature: (m, n, tau, drop, U, wrk1, wrk2, wrk3, B) */
       FN(svqb)(m, n_u, eps_drop, 'n', U, wrk1, wrk2, wrk3, B);
 
-      /* Check orthonormality: ||U^H*B*U - I_sig||_F / ||U||^2 */
+      /* Check orthonormality: ||U^H*B*U - I_sig||_F / ||U||^2
+       * NOTE: denominator choice differs between ortho_drop (||B*U||*||U||)
+       * and ortho_indefinite (||U||^2). For indefinite B, ||B*U|| can vanish
+       * near null-space of B, making ||B*U||*||U|| unsuitable. Investigate
+       * whether ortho_drop should also use ||U||^2 for consistency. */
       FN(gram_self)(U, m, n_u, B, wrk1, n_u, wrk2);
       RTYPE ortho_err = FN(ortho_err_upper)(n_u, wrk1);
       RTYPE U_nrm = FN(nrm2)(m * n_u, U);

@@ -3,15 +3,14 @@
  * @brief Single precision complex (float complex) ortho_indefinite instantiation
  */
 
-#include "../../include/lobpcg/types.h"
-#include "../../lobpcg.h"
-#include "../../include/lobpcg/blas_wrapper.h"
+#include "lobpcg.h"
 #include "lobpcg/linop.h"
+#include "lobpcg/blas_wrapper.h"
 
 #define PREFIX c
 #define CTYPE c32
 #define RTYPE f32
-#define LINOP struct LinearOperator_c_t
+#define LINOP LinearOperator_c_t
 #define CTYPE_IS_COMPLEX
 
 #include "ortho_indefinite_impl.inc"

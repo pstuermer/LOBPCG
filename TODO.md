@@ -63,6 +63,10 @@
 - [x] Fixed fprintf format: `(uint32_t)` → `(unsigned long)` to match `%lu`
 - [x] Inner-loop diagonal check: use `CABS(G_jj) - 1` instead of `G_jj - 1` (matches reference, robust for complex types)
 - [x] Eliminated redundant B-application: reorder so `gram_self` runs first, reuse `wrk1 = B*U` for `BU_norm` (saves n_u matvecs per inner iteration)
+- [x] Fixed inner-loop error: replaced `nrm2` on full matrix (read stale lower triangle from herk) with `ortho_err_upper`
+- [x] Added named iteration bounds (`max_outer`, `max_inner`)
+- [x] Added division-by-zero guards on `BV_norm`, `U_norm` (matching ortho_indefinite pattern)
+- [x] Added workspace layout documentation
 - [ ] (Deferred) Implement drop='y' mode (randomize weak columns)
 
 **Verify:** `test_ortho_drop.c` - 4 tests (d/z × B/no-B) ✓ PASSED
@@ -120,8 +124,13 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Fix `ortho_err_upper`: check `|G_jj| ≈ 1` (not `G_jj ≈ +1`) for indefinite signature
 - [x] Normalize inner-loop error by `||U||^2` (matches reference ilobpcg.c:316)
 - [x] Replace manual `matrix_nrm` with BLAS `nrm2`
+- [x] Added stderr warning for overdetermined dimension check
+- [x] Fused projection GEMM (`U -= V*tmp` → single `gemm_nn` with beta=1)
+- [x] Updated workspace layout documentation
+- [x] Normalized instantiation files: `LINOP` without `struct`, clean include paths
 - [ ] (Deferred) Have svqb return output B-Gram to avoid redundant `gram_self` after svqb
 - [ ] (Deferred) Column dropping / randomization for linearly dependent columns
+- [ ] (Investigate) Inner-loop error denominator: `||B*U||*||U||` vs `||U||^2` — see NOTE comments in both impl files
 
 **Verify:** `test_ortho_indefinite.c` ✓ PASSED (4 diagonal-B + 4 permutation-B + 2 B=NULL tests)
 **Reference:** `ilobpcg.c:185-350` (zortho_randomize_indefinite)
