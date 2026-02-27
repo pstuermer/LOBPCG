@@ -115,7 +115,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
   for (uint64_t i = 0; i < nev; i++) {
     printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-	     i, creal(alg->eigVals[i]), alg->resNorm[i]);
+	     i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
   }
   printf("\n");
 
@@ -213,7 +213,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 	   alg->iter, alg->converged, nev);
     for (uint64_t i = 0; i < nev; i++) {
       printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-	     i, creal(alg->eigVals[i]), alg->resNorm[i]);
+	     i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
     }
     printf("\n");
 	     
