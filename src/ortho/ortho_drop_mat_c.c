@@ -1,3 +1,8 @@
+/**
+ * @file ortho_drop_mat_c.c
+ * @brief Single precision complex (float complex) ortho_drop_mat instantiation
+ */
+
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
 

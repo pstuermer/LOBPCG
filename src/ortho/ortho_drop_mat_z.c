@@ -1,3 +1,8 @@
+/**
+ * @file ortho_drop_mat_z.c
+ * @brief Double precision complex (double complex) ortho_drop_mat instantiation
+ */
+
 #include "lobpcg.h"
 #include "lobpcg/blas_wrapper.h"
 

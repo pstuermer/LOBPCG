@@ -23,10 +23,8 @@
 
 #ifdef CTYPE_IS_COMPLEX
 #define CABS(x) cabs(x)
-#define CREAL(x) creal(x)
 #else
 #define CABS(x) fabs(x)
-#define CREAL(x) (x)
 #endif
 
 /* Fill lower triangle from upper for symmetric/Hermitian matrix */
@@ -187,4 +185,3 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
 #undef FN
 #undef MAX
 #undef CABS
-#undef CREAL

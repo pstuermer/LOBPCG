@@ -104,6 +104,8 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Add declarations to `lobpcg.h`
 - [x] Create `tests/test_ortho_drop_mat.c`
 
+- [x] Harmonized with ortho_drop/ortho_indefinite: `ortho_err_upper` helper, named iteration bounds, division-by-zero guards, overdetermined check, workspace docs fix, fused Step 6 GEMM (5 GEMMs instead of 6+loop), removed unused `CREAL` macro, added instantiation docstrings
+
 **Verify:** `||V^H*mat*U||_F < tol` ✓ PASSED; fixed wrk3 underallocation (was max_n*max_n, needs m*max_n)
 **Reference:** `ilobpcg.c:128-183` (ortho_drop_mat)
 **Note:** Was MISSING from original TODO

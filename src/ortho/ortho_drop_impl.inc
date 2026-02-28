@@ -20,10 +20,8 @@
 
 #ifdef CTYPE_IS_COMPLEX
 #define CABS(x) cabs(x)
-#define CONJ(x) conj(x)
 #else
 #define CABS(x) fabs(x)
-#define CONJ(x) (x)
 #endif
 
 /* Compute ||G-I_sig||_F from upper triangle of Hermitian G */
@@ -144,4 +142,3 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
 #undef FN
 #undef MAX
 #undef CABS
-#undef CONJ
