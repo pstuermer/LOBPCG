@@ -301,7 +301,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Create `tests/test_gram.c` (11 tests, all pass)
 - [x] Replace Gram patterns in: svqb, ortho_drop, ortho_randomize, ortho_indefinite, rayleigh_ritz, rayleigh_ritz_modified, indefinite_rr, indefinite_rr_modified, residual, lobpcg, ilobpcg
 - [x] Fix pre-existing wrk3 buffer underallocation in test_ortho_indefinite (was `coef_size`, needs `wrk_size`)
-- [ ] (Skipped) svqb_mat, ortho_drop_mat — only 2 files, left as-is
+- [x] ~~(Skipped)~~ svqb_mat, ortho_drop_mat — unified via `gram_self_mat`/`gram_cross_mat` helpers
 
 **Verify:** All tests pass after replacements ✓
 

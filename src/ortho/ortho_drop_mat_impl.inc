@@ -102,28 +102,14 @@ uint64_t FN(ortho_drop_mat)(const uint64_t m, const uint64_t n_u,
          *   Step 6: U = U - V * wrk3             (fused gemm_nn with beta=1)
          */
 
-        /* Step 1: wrk1 = mat * U */
-        FN(gemm_nn)(m, n_u, m, (CTYPE)1, mat, U, (CTYPE)0, wrk1);
-
-        /* Step 2: wrk3 = V^H * wrk1  (n_v x n_u, fits in wrk3) */
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk3);
-#else
-        FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk3);
-#endif
+        /* Steps 1-2: wrk3 = V^H * mat * U  (n_v x n_u) */
+        FN(gram_cross_mat)(V, n_v, U, n_u, m, mat, wrk3, n_v, wrk1);
 
         /* Step 3: wrk1 = V * wrk3  (m x n_u) */
         FN(gemm_nn)(m, n_u, n_v, (CTYPE)1, V, wrk3, (CTYPE)0, wrk1);
 
-        /* Step 4: wrk2 = mat * wrk1  (m x n_u) */
-        FN(gemm_nn)(m, n_u, m, (CTYPE)1, mat, wrk1, (CTYPE)0, wrk2);
-
-        /* Step 5: wrk3 = V^H * wrk2  (n_v x n_u) */
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk2, (CTYPE)0, wrk3);
-#else
-        FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk2, (CTYPE)0, wrk3);
-#endif
+        /* Steps 4-5: wrk3 = V^H * mat * wrk1  (n_v x n_u) */
+        FN(gram_cross_mat)(V, n_v, wrk1, n_u, m, mat, wrk3, n_v, wrk2);
 
         /* Step 6: U = U - V * wrk3  (fused into single GEMM with beta=1) */
         FN(gemm_nn)(m, n_u, n_v, (CTYPE)(-1), V, wrk3, (CTYPE)1, U);
@@ -153,12 +139,7 @@ uint64_t FN(ortho_drop_mat)(const uint64_t m, const uint64_t n_u,
         }
 
         /* Check ||V^H*mat*U||_F for convergence */
-        FN(gemm_nn)(m, n_u, m, (CTYPE)1, mat, U, (CTYPE)0, wrk1);
-#ifdef CTYPE_IS_COMPLEX
-        FN(gemm_hn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk2);
-#else
-        FN(gemm_tn)(n_v, n_u, m, (CTYPE)1, V, wrk1, (CTYPE)0, wrk2);
-#endif
+        FN(gram_cross_mat)(V, n_v, U, n_u, m, mat, wrk2, n_v, wrk1);
         RTYPE Unorm = FN(nrm2)(m * n_u, U);
         if (Unorm < eps_ortho) Unorm = (RTYPE)1;
         RTYPE VU_err = FN(nrm2)(n_v * n_u, wrk2);

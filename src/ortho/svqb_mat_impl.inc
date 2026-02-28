@@ -25,7 +25,7 @@
 #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabs(x)
 #else
-#define CABS(x) fabs(x)
+  #define CABS(x) fabs(x)
 #endif
 
 /**
@@ -58,15 +58,8 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
   RTYPE *D = xcalloc(cols, sizeof(RTYPE));
 
-  /* 1. Gram matrix G = U^H * mat * U via two GEMMs */
-  /* wrk2 = mat * U  (rows x cols) */
-  FN(gemm_nn)(rows, cols, rows, (CTYPE)1, mat, U, (CTYPE)0, wrk2);
-  /* wrk1 = U^H * wrk2  (cols x cols) */
-#ifdef CTYPE_IS_COMPLEX
-  FN(gemm_hn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#else
-  FN(gemm_tn)(cols, cols, rows, (CTYPE)1, U, wrk2, (CTYPE)0, wrk1);
-#endif
+  /* 1. Gram matrix G = U^H * mat * U in wrk1 (upper triangle) */
+  FN(gram_self_mat)(U, rows, cols, mat, wrk1, cols, wrk2);
 
   /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
   for (uint64_t i = 0; i < cols; i++) {
@@ -80,9 +73,9 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
       wrk1[i + j*cols] *= D[i] * D[j];
 
   /* 4. Eigensolve G = V *lambda * V^H (reads upper triangle) */
-  int info = FN(eig)(cols, wrk1, eigvals);
+  const int info = FN(eig)(cols, wrk1, eigvals);
   if (0 != info) {
-    fprintf(stderr, "Error in LAPACKE_zheev: %d\n", info);
+    fprintf(stderr, "svqb_mat: eig failed with info=%d\n", info);
     safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
   }
 
@@ -95,7 +88,7 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
    *    where D_final_jj = 1/sqrt(max(|lambda_j|, thresh)) */
   for (uint64_t j = 0; j < cols; j++) {
-    RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
+    const RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
     for (uint64_t i = 0; i < cols; i++)
       wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
   }

@@ -454,6 +454,45 @@ TYPE_LIST(DECLARE_GRAM_CROSS)
   )(V, nv, U, nu, n, B, G, ldg, wrk)
 
 /* --------------------------------------------------------------------
+ * Function declarations: gram_self_mat / gram_cross_mat
+ * Dense-matrix variants (no LinearOperator dependency)
+ * ------------------------------------------------------------------ */
+#define DECLARE_GRAM_SELF_MAT(prefix, ctype, rtype, linop) \
+  void prefix##_gram_self_mat(ctype *restrict U, const uint64_t n,       \
+                              const uint64_t k, const ctype *mat,        \
+                              ctype *restrict G, const uint64_t ldg,     \
+                              ctype *restrict wrk);
+
+TYPE_LIST(DECLARE_GRAM_SELF_MAT)
+#undef DECLARE_GRAM_SELF_MAT
+
+#define gram_self_mat(U, n, k, mat, G, ldg, wrk) \
+  _Generic((U),                            \
+    f32 *: s_gram_self_mat, \
+    f64 *: d_gram_self_mat, \
+    c32 *: c_gram_self_mat, \
+    c64 *: z_gram_self_mat  \
+  )(U, n, k, mat, G, ldg, wrk)
+
+#define DECLARE_GRAM_CROSS_MAT(prefix, ctype, rtype, linop) \
+  void prefix##_gram_cross_mat(ctype *restrict V, const uint64_t nv,     \
+                               ctype *restrict U, const uint64_t nu,     \
+                               const uint64_t n, const ctype *mat,       \
+                               ctype *restrict G, const uint64_t ldg,    \
+                               ctype *restrict wrk);
+
+TYPE_LIST(DECLARE_GRAM_CROSS_MAT)
+#undef DECLARE_GRAM_CROSS_MAT
+
+#define gram_cross_mat(V, nv, U, nu, n, mat, G, ldg, wrk) \
+  _Generic((V),                                      \
+    f32 *: s_gram_cross_mat, \
+    f64 *: d_gram_cross_mat, \
+    c32 *: c_gram_cross_mat, \
+    c64 *: z_gram_cross_mat  \
+  )(V, nv, U, nu, n, mat, G, ldg, wrk)
+
+/* --------------------------------------------------------------------
  * Function declarations: fill_random
  * Fill array with uniform random values
  * ------------------------------------------------------------------ */

@@ -9,6 +9,7 @@
  * Macros required: PREFIX, CTYPE, RTYPE, LINOP
  */
 
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -64,7 +65,7 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
 
   /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
   for (uint64_t i = 0; i < cols; i++) {
-    RTYPE gii = CABS(wrk1[i + i*cols]);
+    const RTYPE gii = CABS(wrk1[i + i*cols]);
     D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
   }
 
@@ -74,7 +75,9 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
       wrk1[i + j*cols] *= D[i] * D[j];
 
   /* 4. Eigensolve G̃ = V Λ V^H (reads upper triangle) */
-  if (0 != FN(eig)(cols, wrk1, eigvals)) {
+  const int info = FN(eig)(cols, wrk1, eigvals);
+  if (0 != info) {
+    fprintf(stderr, "svqb: eig failed with info=%d\n", info);
     safe_free((void**)&eigvals); safe_free((void**)&D); return cols;
   }
 
@@ -82,12 +85,12 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   RTYPE maxeig = 0;
   for (uint64_t i = 0; i < cols; i++)
     if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
-  RTYPE thresh = tau * maxeig;
+  const RTYPE thresh = tau * maxeig;
 
   /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
    *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) */
   for (uint64_t j = 0; j < cols; j++) {
-    RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
+    const RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
     for (uint64_t i = 0; i < cols; i++)
       wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
   }
