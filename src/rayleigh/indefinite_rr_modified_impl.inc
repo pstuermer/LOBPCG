@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
@@ -24,12 +25,22 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#ifdef CTYPE_IS_COMPLEX
-#define CABS(x) cabs(x)
-#define CREAL(x) creal(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #define CREAL(x) (x)
+  #endif
 #else
-#define CABS(x) fabs(x)
-#define CREAL(x) (x)
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabs(x)
+  #define CREAL(x) (x)
+  #endif
 #endif
 
 #include "bubble_sort_sig_impl.inc"
@@ -61,16 +72,17 @@
  *   wrk4: sizeSub x sizeSub
  */
 void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
-					   const uint64_t mult, const uint64_t nconv,
-					   const uint64_t ndrop, CTYPE *restrict S, const CTYPE *restrict AX,
-					   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
-					   CTYPE *restrict wrk3, CTYPE *restrict wrk4,
-					   CTYPE *restrict Cx, CTYPE *restrict Cp,
-					   CTYPE *Cx_ortho,
-					   RTYPE *restrict eigVal,
-					   int8_t *restrict signature,
-					   int *restrict quality_flag,
-					   LINOP *A, LINOP *B) {
+                                           const uint64_t mult, const uint64_t nconv,
+                                           const uint64_t ndrop, CTYPE *restrict S,
+                                           const CTYPE *restrict AX,
+                                           CTYPE *restrict wrk1, CTYPE *restrict wrk2,
+                                           CTYPE *restrict wrk3, CTYPE *restrict wrk4,
+                                           CTYPE *restrict Cx, CTYPE *restrict Cp,
+                                           CTYPE *restrict Cx_ortho,
+                                           RTYPE *restrict eigVal,
+                                           int8_t *restrict signature,
+                                           int *restrict quality_flag,
+                                           LINOP *A, LINOP *B) {
 
   (void)nconv;
   (void)ndrop;
@@ -150,13 +162,13 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 #endif
 
   for (uint64_t i = 0; i < sizeSub; i++) {
-    CTYPE diag_val = wrk4[i + i * sizeSub];
-    RTYPE abs_diag = CABS(diag_val);
+    const CTYPE diag_val = wrk4[i + i * sizeSub];
+    const RTYPE abs_diag = CABS(diag_val);
 
     if (abs_diag > (RTYPE)1e-30) {
-      RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
+      const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
       for (uint64_t k = 0; k < sizeSub; k++)
-	VR[k + i * sizeSub] *= (CTYPE)scale;
+        VR[k + i * sizeSub] *= (CTYPE)scale;
     }
 
     sig_all[i] = (CREAL(diag_val) >= 0) ? 1 : -1;
@@ -172,9 +184,9 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 #endif
   for (uint64_t i = 0; i < sizeSub; i++)
     wrk4[i + i * sizeSub] = (CTYPE)(CABS(wrk4[i + i * sizeSub]) - (RTYPE)1);
-  RTYPE eerr  = FN(nrm2)(ss, wrk4);
-  RTYPE cerr  = FN(nrm2)(ss, VR);
-  RTYPE Bcerr = FN(nrm2)(ss, wrk1);
+  const RTYPE eerr  = FN(nrm2)(ss, wrk4);
+  const RTYPE cerr  = FN(nrm2)(ss, VR);
+  const RTYPE Bcerr = FN(nrm2)(ss, wrk1);
   const int quality_ok = (Bcerr < (RTYPE)1e-30 || eerr <= (RTYPE)1e-10 * cerr * Bcerr);
 
   /* 7. Sort by signature */
@@ -184,7 +196,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   memcpy(wrk1, VR, ss * sizeof(CTYPE));
   for (uint64_t j = 0; j < sizeSub; j++) {
     memcpy(&VR[j * sizeSub], &wrk1[indices[j] * sizeSub],
-	   sizeSub * sizeof(CTYPE));
+           sizeSub * sizeof(CTYPE));
   }
 
   /* 9. Extract first nx eigenvalues and signature */

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
@@ -18,10 +19,18 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-#ifdef CTYPE_IS_COMPLEX
-#define CABS(x) cabs(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #endif
 #else
-#define CABS(x) fabs(x)
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #else
+  #define CABS(x) fabs(x)
+  #endif
 #endif
 
 /* Standard Rayleigh-Ritz procedure
@@ -32,12 +41,10 @@
  * 3. Scale upper triangle: G_scaled = D * G * D
  * 4. Cholesky: G_scaled = R^H * R  (R upper triangular)
  * 5. Compute D_inv_R = D * inv(R) via trsm_run
- * 6. Compute AS = A * S
- * 7. Compute Ap = S^H * AS
- * 8. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R
- * 9. Eigensolve: Ap_scaled * V = V * Lambda
- * 10. Back-transform: Cx = D_inv_R * V
- * 11. Store eigenvalues
+ * 6. Compute Ap = S^H * A * S via gram_self
+ * 7. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R
+ * 8. Eigensolve: Ap_scaled * V = V * Lambda
+ * 9. Back-transform: Cx = D_inv_R * V
  */
 void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
                        CTYPE *restrict S, CTYPE *restrict Cx, RTYPE *restrict eigVal,
@@ -52,7 +59,7 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
 
   /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
   for (uint64_t i = 0; i < sizeSub; i++) {
-    RTYPE gii = CABS(wrk1[i + i*sizeSub]);
+    const RTYPE gii = CABS(wrk1[i + i*sizeSub]);
     D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
   }
 
@@ -66,8 +73,7 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   /* 4. Cholesky factorization: wrk1 = R^H * R (R in upper triangle) */
   if (0 != FN(potrf)(sizeSub, wrk1)) {
     fprintf(stderr, "rayleigh_ritz: Cholesky failed\n");
-    safe_free((void**)&D);
-    return;
+    goto cleanup;
   }
 
   /* 5. Compute D_inv_R = D * inv(R) in wrk3
@@ -78,20 +84,10 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   }
   FN(trsm_run)(sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3);
 
-  
-
-  /* 6. Compute AS = A * S in wrk2 */
+  /* 6. Compute Ap = S^H * A * S in wrk1 via gram_self */
   FN(gram_self)(S, size, sizeSub, A, wrk1, sizeSub, wrk2);
-  //  FN(apply_block_op)(A, S, wrk2, size, sizeSub);
 
-  /* 7. Compute Ap = S^H * AS in wrk1 */
-  /*#ifdef CTYPE_IS_COMPLEX
-  FN(gemm_hn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
-#else
-  FN(gemm_tn)(sizeSub, sizeSub, size, (CTYPE)1, S, wrk2, (CTYPE)0, wrk1);
-  #endif*/
-
-  /* 8. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R
+  /* 7. Transform: Ap_scaled = D_inv_R^H * Ap * D_inv_R
    *    tmp = Ap * D_inv_R in wrk2 (reuse — only sizeSub x sizeSub needed) */
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk1, wrk3, (CTYPE)0, wrk2);
   /* Ap_scaled = D_inv_R^H * tmp in wrk1 */
@@ -101,16 +97,16 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, wrk2, (CTYPE)0, wrk1);
 #endif
 
-  /* 9. Eigensolve: wrk1 contains eigenvectors on return (reads upper triangle) */
+  /* 8. Eigensolve: wrk1 contains eigenvectors on return (reads upper triangle) */
   if (0 != FN(eig)(sizeSub, wrk1, eigVal)) {
     fprintf(stderr, "rayleigh_ritz: eigensolve failed\n");
-    safe_free((void**)&D);
-    return;
+    goto cleanup;
   }
 
-  /* 10. Back-transform: Cx = D_inv_R * V */
+  /* 9. Back-transform: Cx = D_inv_R * V */
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, wrk1, (CTYPE)0, Cx);
 
+cleanup:
   safe_free((void**)&D);
 }
 

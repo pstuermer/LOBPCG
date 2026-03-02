@@ -379,7 +379,7 @@ TYPE_LIST(DECLARE_INDEF_RR)
       ctype *restrict wrk1,                                              \
       ctype *restrict wrk2, ctype *restrict wrk3, ctype *restrict wrk4, \
       ctype *restrict Cx, ctype *restrict Cp,                            \
-      ctype *Cx_ortho,                                                   \
+      ctype *restrict Cx_ortho,                                           \
       rtype *restrict eigVal, int8_t *restrict signature,                \
       int *restrict quality_flag,                                        \
       linop *A, linop *B);

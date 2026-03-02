@@ -12,20 +12,29 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
-#ifdef CTYPE_IS_COMPLEX
-#define CABS(x) cabs(x)
-#define CREAL(x) creal(x)
-#define CSQRT(x) csqrt(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #define CREAL(x) (x)
+  #endif
 #else
-#define CABS(x) fabs(x)
-#define CREAL(x) (x)
-#define CSQRT(x) sqrt(x)
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabs(x)
+  #define CREAL(x) (x)
+  #endif
 #endif
 
 #include "bubble_sort_sig_impl.inc"
@@ -56,11 +65,11 @@
  *   wrk4: sizeSub x sizeSub (GGEV destroys both inputs)
  */
 void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
-				  CTYPE *restrict S, CTYPE *restrict Cx, RTYPE *restrict eigVal,
-				  int8_t *restrict signature,
-				  CTYPE *restrict wrk1, CTYPE *restrict wrk2,
-				  CTYPE *restrict wrk3, CTYPE *restrict wrk4,
-				  LINOP *A, LINOP *B) {
+                                  CTYPE *restrict S, CTYPE *restrict Cx, RTYPE *restrict eigVal,
+                                  int8_t *restrict signature,
+                                  CTYPE *restrict wrk1, CTYPE *restrict wrk2,
+                                  CTYPE *restrict wrk3, CTYPE *restrict wrk4,
+                                  LINOP *A, LINOP *B) {
 
   const uint64_t ss = sizeSub * sizeSub;
 
@@ -131,7 +140,7 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
     if (abs_diag > (RTYPE)1e-30) {
       const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
       for (uint64_t k = 0; k < sizeSub; k++)
-	Cx[k + i * sizeSub] *= (CTYPE)scale;
+        Cx[k + i * sizeSub] *= (CTYPE)scale;
     }
 
     /* 7. Extract signature from sign of B-inner product diagonal */
@@ -146,10 +155,10 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   memcpy(wrk1, Cx, ss * sizeof(CTYPE));
   for (uint64_t j = 0; j < sizeSub; j++) {
     memcpy(&Cx[j * sizeSub], &wrk1[indices[j] * sizeSub],
-	   sizeSub * sizeof(CTYPE));
+           sizeSub * sizeof(CTYPE));
   }
 
- cleanup:
+cleanup:
   safe_free((void**)&indices);
 #ifdef CTYPE_IS_COMPLEX
   safe_free((void**)&alpha);
@@ -166,4 +175,3 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
 #undef FN
 #undef CABS
 #undef CREAL
-#undef CSQRT
