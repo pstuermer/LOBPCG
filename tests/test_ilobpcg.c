@@ -67,6 +67,29 @@ static void block_perm_matvec_d(const LinearOperator_d_t *op,
 }
 
 /* ================================================================
+ * Ill-conditioned block-permutation B (double):
+ *   B = {{0,D},{D,0}} where D = diag(1, r, r^2, ..., r^{m-1}), r=0.7
+ *   Produces poor B-orthogonality in GGEV eigenvectors -> quality=5
+ * ================================================================ */
+
+typedef struct {
+  uint64_t m;
+  f64 *diag;  /* D = diag(1, r, r^2, ...) */
+} block_illcond_ctx_t;
+
+static void block_illcond_matvec_d(const LinearOperator_d_t *op,
+                                   f64 *restrict x, f64 *restrict y) {
+  block_illcond_ctx_t *ctx = (block_illcond_ctx_t *)op->ctx;
+  const uint64_t m = ctx->m;
+  const f64 *d = ctx->diag;
+  /* y[0:m] = D * x[m:2m],  y[m:2m] = D * x[0:m] */
+  for (uint64_t i = 0; i < m; i++) {
+    y[i]     = d[i] * x[m + i];
+    y[m + i] = d[i] * x[i];
+  }
+}
+
+/* ================================================================
  * Block-Laplacian A (complex double): same structure, c64 types
  * ================================================================ */
 
@@ -233,11 +256,84 @@ TEST(z_ilobpcg_block_laplacian) {
     safe_free((void **)&ctx_b);
 }
 
+/* ================================================================
+ * Test 3: Block-Laplacian A + ill-conditioned block-permutation B (double)
+ *   A = {{K,0},{0,K}}, B = {{0,D},{D,0}} with D = diag(1, r, r^2, ...)
+ *   The condition number of D forces GGEV eigenvectors to have poor
+ *   B-orthogonality, triggering quality=5 in modified Rayleigh-Ritz.
+ * ================================================================ */
+TEST(d_ilobpcg_quality5) {
+  const uint64_t m = 30;
+  const uint64_t n = 2 * m;
+  const uint64_t nev = 2, sizeSub = 4;
+  const uint64_t maxIter = 500;
+  const f64 tol = 1e-3;
+  const f64 r = 0.1;
+
+  const f64 L = 1.0;
+  const f64 h = L / (m + 1);
+
+  /* Block-Laplacian A */
+  block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
+  ctx_a->m = m;
+  ctx_a->h2_inv = 1.0 / (h * h);
+  LinearOperator_d_t A = { .rows = n, .cols = n,
+                           .matvec = (matvec_func_d_t)block_laplacian_matvec_d,
+                           .ctx = (linop_ctx_t *)ctx_a };
+
+  /* Ill-conditioned block-permutation B */
+  block_illcond_ctx_t *ctx_b = xcalloc(1, sizeof(block_illcond_ctx_t));
+  ctx_b->m = m;
+  ctx_b->diag = xcalloc(m, sizeof(f64));
+  ctx_b->diag[0] = 1.0;
+  for (uint64_t i = 1; i < m; i++)
+    ctx_b->diag[i] = ctx_b->diag[i - 1] * r;
+  LinearOperator_d_t B = { .rows = n, .cols = n,
+                           .matvec = (matvec_func_d_t)block_illcond_matvec_d,
+                           .ctx = (linop_ctx_t *)ctx_b };
+
+  d_lobpcg_t *alg = d_ilobpcg_alloc(n, nev, sizeSub);
+  alg->A = &A;
+  alg->B = &B;
+  alg->T = NULL;
+  alg->maxIter = maxIter;
+  alg->tol = tol;
+
+  /* B-positive initialization: top = bottom halves.
+   * For B={{0,D},{D,0}}, v^T*B*v = 2*u^T*D*u > 0 when u random. */
+  srand(99);
+  for (uint64_t k = 0; k < sizeSub; k++) {
+    for (uint64_t j = 0; j < m; j++) {
+      const f64 val = (f64)rand() / RAND_MAX - 0.5;
+      alg->S[j + k * n]     = val;
+      alg->S[m + j + k * n] = val;
+    }
+  }
+
+  d_ilobpcg(alg);
+
+  printf("conv=%lu iter=%lu ", (unsigned long)alg->converged,
+         (unsigned long)alg->iter);
+  ASSERT(alg->converged == nev);
+
+  /* Check eigenvalues are positive */
+  for (uint64_t k = 0; k < nev; k++) {
+    printf("eig[%lu]=%.6f ", (unsigned long)k, alg->eigVals[k]);
+    ASSERT(alg->eigVals[k] > 0);
+  }
+
+  d_lobpcg_free(&alg);
+  safe_free((void **)&ctx_b->diag);
+  safe_free((void **)&ctx_b);
+  safe_free((void **)&ctx_a);
+}
+
 /* ================================================================ */
 int main(void) {
     printf("Indefinite LOBPCG tests:\n");
     RUN(d_ilobpcg_block_laplacian);
     RUN(z_ilobpcg_block_laplacian);
+    RUN(d_ilobpcg_quality5);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
