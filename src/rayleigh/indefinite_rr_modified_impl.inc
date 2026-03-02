@@ -152,8 +152,26 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 #endif
   }
 
-  /* 6. B-normalize eigenvectors: V^H * GB * V
-   *    wrk3 still holds GB, VR holds eigenvectors */
+  /* 6a. B-normalize eigenvectors (first pass): V^H * GB * V
+   *     wrk3 still holds GB, VR holds eigenvectors */
+  FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
+#ifdef CTYPE_IS_COMPLEX
+  FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
+#else
+  FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
+#endif
+
+  for (uint64_t i = 0; i < sizeSub; i++) {
+    const RTYPE abs_diag = CABS(wrk4[i + i * sizeSub]);
+    if (abs_diag > (RTYPE)1e-30) {
+      const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
+      for (uint64_t k = 0; k < sizeSub; k++)
+        VR[k + i * sizeSub] *= (CTYPE)scale;
+    }
+  }
+
+  /* 6b. B-normalize eigenvectors (second pass) + extract signatures
+   *     Double normalization improves B-orthogonality (ref ilobpcg.c:608-622) */
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
 #ifdef CTYPE_IS_COMPLEX
   FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
@@ -164,18 +182,16 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   for (uint64_t i = 0; i < sizeSub; i++) {
     const CTYPE diag_val = wrk4[i + i * sizeSub];
     const RTYPE abs_diag = CABS(diag_val);
-
     if (abs_diag > (RTYPE)1e-30) {
       const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
       for (uint64_t k = 0; k < sizeSub; k++)
         VR[k + i * sizeSub] *= (CTYPE)scale;
     }
-
     sig_all[i] = (CREAL(diag_val) >= 0) ? 1 : -1;
   }
 
-  /* Quality check: relative B-orthogonality of normalized GGEV eigenvectors
-   * Recompute V^H * GB * V after normalization; wrk3 = GB still valid */
+  /* Quality check: relative B-orthogonality after double normalization
+   * Recompute V^H * GB * V; wrk3 = GB still valid */
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
 #ifdef CTYPE_IS_COMPLEX
   FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
@@ -221,17 +237,24 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
              n_remainder * sizeof(CTYPE));
   }
 
-  /* 12. Cx_ortho + quality_flag:
+  /* 12. Cx_ortho + quality_flag + Cp orthogonalization:
+   *     Ortho Cp against Cx (matching reference ilobpcg.c:655,696).
    *     If GGEV eigenvectors are well-conditioned, Cx_ortho = Cx.
-   *     Otherwise B-orthogonalize Cx in-place via svqb_mat, save result to
-   *     Cx_ortho, then restore accurate Cx from VR (dead after step 10). */
+   *     Otherwise B-orthogonalize Cx in-place via svqb_mat, ortho Cp against
+   *     the well-conditioned Cx, save result to Cx_ortho, restore accurate Cx. */
   if (quality_ok) {
+    FN(ortho_indefinite_mat)(sizeSub, nx, nx,
+                             (RTYPE)1e-12, (RTYPE)1e-12,
+                             Cp, Cx, wrk3, wrk1, wrk2, wrk4);
     memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));
     *quality_flag = 1;
   } else {
     memcpy(VR, Cx, sizeSub * nx * sizeof(CTYPE));           /* save accurate Cx */
     FN(svqb_mat)(sizeSub, nx, (RTYPE)1e-12, 'n',
                  Cx, wrk3, wrk1, wrk2, wrk4);               /* ortho Cx in-place */
+    FN(ortho_indefinite_mat)(sizeSub, nx, nx,
+                             (RTYPE)1e-12, (RTYPE)1e-12,
+                             Cp, Cx, wrk3, wrk1, wrk2, wrk4);
     memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));     /* result -> Cx_ortho */
     memcpy(Cx, VR, sizeSub * nx * sizeof(CTYPE));           /* restore accurate Cx */
     *quality_flag = 5;
