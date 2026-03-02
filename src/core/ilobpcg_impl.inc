@@ -191,9 +191,26 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 			    ANorm, BNorm, alg->B);
     } else if (5 == quality_flag) {
       const uint64_t ms = mult*sizeSub;
+
+      /* 1. Save X_accurate = S * Cx in first block of wrk4
+       *    (for residual — needs accurate eigenvalue correspondence) */
       FN(gemm_nn)(size, sizeSub, ms, (CTYPE)1, alg->S,
 		  alg->Cx, (CTYPE)0, alg->wrk4);
 
+      /* 2. Project [X,P] = S * [Cx_ortho, Cp] into second block of wrk4
+       *    Must read from S BEFORE residual overwrites W ⊂ S */
+      memcpy(alg->wrk2, alg->wrk1, ms*sizeSub * sizeof(CTYPE));
+      memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
+		  alg->wrk2, (CTYPE)0, alg->wrk4 + size*sizeSub);
+
+      /* 3. Overwrite [X, P] in S — safe now, both reads from S are done */
+      memcpy(alg->S, alg->wrk4 + size*sizeSub, 2*size*sizeSub * sizeof(CTYPE));
+
+      if (alg->AX)
+	FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+
+      /* 4. Compute residual from X_accurate (wrk4[0:size*sizeSub]) */
       FN(get_residual)(size, sizeSub, alg->wrk4, NULL, W, alg->eigVals,
 		       alg->wrk2, alg->A, alg->B);
 
@@ -217,20 +234,6 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     }
     printf("\n");
 	     
-
-    if (5 == quality_flag) {
-      /* Overwrite X with well-conditioned basis for next iteration */
-      const uint64_t ms = mult*sizeSub;
-      memcpy(alg->wrk2, alg->wrk1, ms*sizeSub * sizeof(CTYPE));
-      memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
-      FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
-		  alg->wrk2, (CTYPE)0, alg->wrk4);
-      memcpy(alg->S, alg->wrk4, 2*size*sizeSub * sizeof(CTYPE));
-
-      if (alg->AX)
-	FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
-
-    }
 
     if (alg->converged == nev) {
       break;
