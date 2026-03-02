@@ -7,6 +7,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 #include "lobpcg/memory.h"
 
@@ -18,11 +19,20 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
-#ifdef CTYPE_IS_COMPLEX
-#define CABS(x) cabs(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #endif
 #else
-#define CABS(x) fabs(x)
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #else
+  #define CABS(x) fabs(x)
+  #endif
 #endif
+
 
 /* Compute ||G-I_sig||_F from upper triangle of Hermitian G */
 static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
@@ -134,7 +144,7 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
     if (rerr < eps_ortho) break;
   }
 
-  return n_u;
+  return 0; /* No column dropping implemented yet */
 }
 
 #undef CONCAT2

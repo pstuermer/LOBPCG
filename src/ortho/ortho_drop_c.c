@@ -7,5 +7,6 @@
 #define RTYPE f32
 #define LINOP LinearOperator_c_t
 #define CTYPE_IS_COMPLEX
+#define TYPE_IS_FLOAT
 
 #include "ortho_drop_impl.inc"

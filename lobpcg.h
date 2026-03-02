@@ -312,33 +312,33 @@ TYPE_LIST(DECLARE_ORTHO_INDEFINITE)
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, sig, wrk1, wrk2, wrk3, B)
 
 /* --------------------------------------------------------------------
- * Function declarations: ortho_drop_mat
+ * Function declarations: ortho_indefinite_mat
  * Matrix-based B-orthogonalization of U against V (for ilobpcg)
  * Uses double projection (I - V*V^H*mat)^2 for indefinite metric
- * Returns number of columns retained in U
+ * Returns number of columns dropped from U
  * ------------------------------------------------------------------ */
-#define DECLARE_ORTHO_DROP_MAT(prefix, ctype, rtype, linop)   \
-  uint64_t prefix##_ortho_drop_mat(const uint64_t m,          \
-                                   const uint64_t n_u,        \
-                                   const uint64_t n_v,        \
-                                   const rtype eps_ortho,     \
-                                   const rtype eps_drop,      \
-                                   ctype *restrict U,         \
-                                   ctype *restrict V,         \
-                                   ctype *restrict mat,       \
-                                   ctype *restrict wrk1,      \
-                                   ctype *restrict wrk2,      \
-                                   ctype *restrict wrk3);
+#define DECLARE_ORTHO_INDEFINITE_MAT(prefix, ctype, rtype, linop) \
+  uint64_t prefix##_ortho_indefinite_mat(const uint64_t m,        \
+                                         const uint64_t n_u,      \
+                                         const uint64_t n_v,      \
+                                         const rtype eps_ortho,   \
+                                         const rtype eps_drop,    \
+                                         ctype *restrict U,       \
+                                         ctype *restrict V,       \
+                                         ctype *restrict mat,     \
+                                         ctype *restrict wrk1,    \
+                                         ctype *restrict wrk2,    \
+                                         ctype *restrict wrk3);
 
-TYPE_LIST(DECLARE_ORTHO_DROP_MAT)
-#undef DECLARE_ORTHO_DROP_MAT
+TYPE_LIST(DECLARE_ORTHO_INDEFINITE_MAT)
+#undef DECLARE_ORTHO_INDEFINITE_MAT
 
-#define ortho_drop_mat(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3) \
-  _Generic((U),                         \
-    f32 *: s_ortho_drop_mat,            \
-    f64 *: d_ortho_drop_mat,            \
-    c32 *: c_ortho_drop_mat,            \
-    c64 *: z_ortho_drop_mat             \
+#define ortho_indefinite_mat(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3) \
+  _Generic((U),                             \
+    f32 *: s_ortho_indefinite_mat,          \
+    f64 *: d_ortho_indefinite_mat,          \
+    c32 *: c_ortho_indefinite_mat,          \
+    c64 *: z_ortho_indefinite_mat           \
   )(m, n_u, n_v, eps_ortho, eps_drop, U, V, mat, wrk1, wrk2, wrk3)
 
 /* --------------------------------------------------------------------

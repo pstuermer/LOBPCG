@@ -23,10 +23,18 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
-#ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #endif
 #else
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #else
   #define CABS(x) fabs(x)
+  #endif
 #endif
 
 /**
