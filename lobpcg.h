@@ -605,9 +605,10 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
     alg->wrk2 = xcalloc(3*ns, sizeof(ctype));				\
     alg->wrk3 = xcalloc(LOBPCG_MAX(ns, ss9), sizeof(ctype));		\
     alg->wrk4 = xcalloc(LOBPCG_MAX(2*ns, ss9), sizeof(ctype));		\
-    alg->rr_D = xcalloc(sizeSub, sizeof(rtype));			\
-    alg->rr_eigvals = xcalloc(sizeSub, sizeof(rtype));			\
-    alg->rr_tau = xcalloc(sizeSub, sizeof(ctype));			\
+    /* RR buffers sized for modified RR where sizeSub_local = mult*nx, mult<=3 */ \
+    alg->rr_D = xcalloc(3 * sizeSub, sizeof(rtype));			\
+    alg->rr_eigvals = xcalloc(3 * sizeSub, sizeof(rtype));		\
+    alg->rr_tau = xcalloc(3 * sizeSub, sizeof(ctype));			\
     return alg;								\
   }
 
@@ -662,10 +663,11 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
       		      uint64_t n, uint64_t nev, uint64_t sizeSub) {     \
     prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev, sizeSub);	\
     alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
-    alg->rr_VR = xcalloc(sizeSub * sizeSub, sizeof(ctype));		\
-    alg->rr_sig = xcalloc(sizeSub, sizeof(int8_t));			\
-    alg->rr_indices = xcalloc(sizeSub, sizeof(uint64_t));		\
-    alg->rr_ggev = xcalloc(3 * sizeSub, sizeof(ctype));		\
+    /* sized for modified RR: sizeSub_local = mult*nx, mult<=3 */	\
+    alg->rr_VR = xcalloc(9 * sizeSub * sizeSub, sizeof(ctype));	\
+    alg->rr_sig = xcalloc(3 * sizeSub, sizeof(int8_t));		\
+    alg->rr_indices = xcalloc(3 * sizeSub, sizeof(uint64_t));		\
+    alg->rr_ggev = xcalloc(9 * sizeSub, sizeof(ctype));		\
     /* ilobpcg quality=5 path needs 3*n*sizeSub for wrk4 */		\
     const uint64_t ns3 = 3 * n * sizeSub;				\
     const uint64_t cur = LOBPCG_MAX(2*n*sizeSub, 9*sizeSub*sizeSub);	\
