@@ -100,7 +100,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
   /* Initialize eigenvectors if needed (check if S is zero) */
   RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
-  if (x_norm < 1e-14) {
+  if (x_norm < (RTYPE)EPS_TOL) {
     FN(fill_random)(size * sizeSub, X);
   }
 
@@ -235,5 +235,6 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 #undef CONCAT2
 #undef CONCAT
 #undef FN
+#undef EPS_TOL
 #undef CABS
 #undef CREAL

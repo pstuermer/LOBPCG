@@ -92,12 +92,12 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   // also need to pay attention to inertia of these
   // vectors (see reference implementation)
   const RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
-  if (x_norm < 1e-14) {
+  if (x_norm < (RTYPE)EPS_TOL) {
     FN(fill_random)(size * sizeSub, X);
   }
 
   /* B-orthonormalize X via svqb */
-  FN(svqb)(size, sizeSub, (RTYPE)1e-12, 'n', X,
+  FN(svqb)(size, sizeSub, (RTYPE)EPS_TOL, 'n', X,
 	   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
 
   /* Initial indefinite Rayleigh-Ritz on X */
@@ -256,5 +256,6 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 #undef CONCAT2
 #undef CONCAT
 #undef FN
+#undef EPS_TOL
 #undef CABS
 #undef CREAL

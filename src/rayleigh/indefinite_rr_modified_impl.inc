@@ -246,16 +246,16 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
    *     the well-conditioned Cx, save result to Cx_ortho, restore accurate Cx. */
   if (quality_ok) {
     FN(ortho_indefinite_mat)(sizeSub, nx, nx,
-                             (RTYPE)1e-12, (RTYPE)1e-12,
+                             (RTYPE)EPS_TOL, (RTYPE)EPS_TOL,
                              Cp, Cx, wrk3, wrk1, wrk2, wrk4);
     memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));
     *quality_flag = 1;
   } else {
     memcpy(VR, Cx, sizeSub * nx * sizeof(CTYPE));           /* save accurate Cx */
-    FN(svqb_mat)(sizeSub, nx, (RTYPE)1e-12, 'n',
+    FN(svqb_mat)(sizeSub, nx, (RTYPE)EPS_TOL, 'n',
                  Cx, wrk3, wrk1, wrk2, wrk4);               /* ortho Cx in-place */
     FN(ortho_indefinite_mat)(sizeSub, nx, nx,
-                             (RTYPE)1e-12, (RTYPE)1e-12,
+                             (RTYPE)EPS_TOL, (RTYPE)EPS_TOL,
                              Cp, Cx, wrk3, wrk1, wrk2, wrk4);
     memcpy(Cx_ortho, Cx, sizeSub * nx * sizeof(CTYPE));     /* result -> Cx_ortho */
     memcpy(Cx, VR, sizeSub * nx * sizeof(CTYPE));           /* restore accurate Cx */
@@ -280,6 +280,7 @@ cleanup:
 #undef CONCAT2
 #undef CONCAT
 #undef FN
+#undef EPS_TOL
 #undef MIN
 #undef CABS
 #undef CREAL

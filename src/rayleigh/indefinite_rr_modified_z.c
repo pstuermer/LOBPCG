@@ -7,5 +7,6 @@
 #define RTYPE f64
 #define LINOP LinearOperator_z_t
 #define CTYPE_IS_COMPLEX
+#define EPS_TOL 1e-12
 
 #include "indefinite_rr_modified_impl.inc"
