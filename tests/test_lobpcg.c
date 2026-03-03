@@ -62,6 +62,26 @@ static void laplacian_matvec_d(const LinearOperator_d_t *op,
 }
 
 /* ================================================================
+ * Laplacian matvec (float): -d^2/dx^2 with Dirichlet BC
+ * ================================================================ */
+
+typedef struct {
+    uint64_t n;
+    f32 h2_inv;
+} laplacian_ctx_s_t;
+
+static void laplacian_matvec_s(const LinearOperator_s_t *op,
+                               const f32 *x, f32 *y) {
+    laplacian_ctx_s_t *ctx = (laplacian_ctx_s_t *)op->ctx;
+    uint64_t n = ctx->n;
+    f32 c = ctx->h2_inv;
+    y[0] = c * (2.0f * x[0] - x[1]);
+    for (uint64_t i = 1; i < n - 1; i++)
+        y[i] = c * (-x[i-1] + 2.0f * x[i] - x[i+1]);
+    y[n-1] = c * (-x[n-2] + 2.0f * x[n-1]);
+}
+
+/* ================================================================
  * Reference matrices (column-major, same as test_rayleigh_ritz.c)
  * ================================================================ */
 
@@ -361,6 +381,40 @@ TEST(d_lobpcg_laplacian) {
     safe_free((void**)&ctx);
 }
 
+/* ================================================================
+ * Test 6: s_lobpcg on 1D Laplacian, n=100, nev=3 (float)
+ * ================================================================ */
+TEST(s_lobpcg_laplacian) {
+    const uint64_t n = 100, nev = 3;
+
+    f32 L = 1.0f;
+    f32 h = L / (n + 1);
+    laplacian_ctx_s_t *ctx = xcalloc(1, sizeof(laplacian_ctx_s_t));
+    ctx->n = n;
+    ctx->h2_inv = 1.0f / (h * h);
+
+    LinearOperator_s_t A = { .rows = n, .cols = n,
+                             .matvec = (void (*)(const LinearOperator_s_t *, f32 *, f32 *))laplacian_matvec_s,
+                             .ctx = (linop_ctx_t *)ctx };
+
+    const uint64_t sizeSub = 5;
+    s_lobpcg_t *alg = s_lobpcg_alloc(n, nev, sizeSub);
+    alg->A = &A;
+    alg->B = NULL;
+    alg->T = NULL;
+    alg->maxIter = 500;
+    alg->tol = 1e-3f;
+
+    s_lobpcg(alg);
+
+    printf("conv=%lu iter=%lu ", (unsigned long)alg->converged,
+           (unsigned long)alg->iter);
+    ASSERT(alg->converged == nev);
+
+    s_lobpcg_free(&alg);
+    safe_free((void**)&ctx);
+}
+
 /* ================================================================ */
 int main(void) {
     printf("LOBPCG dense tests:\n");
@@ -369,8 +423,9 @@ int main(void) {
     RUN(d_lobpcg_6x6);
     RUN(d_lobpcg_6x6_nev2);
 
-    printf("\nLOBPCG Laplacian test:\n");
+    printf("\nLOBPCG Laplacian tests:\n");
     RUN(d_lobpcg_laplacian);
+    RUN(s_lobpcg_laplacian);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);

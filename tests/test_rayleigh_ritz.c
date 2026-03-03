@@ -213,10 +213,11 @@ TEST(d_rr_4x4) {
     f64 *wrk1 = xcalloc(nev * nev, sizeof(f64));
     f64 *wrk2 = xcalloc(n * nev, sizeof(f64));
     f64 *wrk3 = xcalloc(nev * nev, sizeof(f64));
+    f64 *rr_D = xcalloc(nev, sizeof(f64));
 
     memcpy(S, S4x2_d, n * nev * sizeof(f64));
 
-    d_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, NULL);
+    d_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, rr_D, &A, NULL);
 
     /* Check eigenvalues */
     ASSERT_NEAR(eigVal[0], eigVal_ref_4x4[0], 1e-4);
@@ -240,7 +241,7 @@ TEST(d_rr_4x4) {
 
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&X_new);
+    safe_free((void**)&rr_D); safe_free((void**)&X_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
 
@@ -264,6 +265,7 @@ TEST(z_rr_4x4) {
     c64 *wrk1 = xcalloc(nev * nev, sizeof(c64));
     c64 *wrk2 = xcalloc(n * nev, sizeof(c64));
     c64 *wrk3 = xcalloc(nev * nev, sizeof(c64));
+    f64 *rr_D = xcalloc(nev, sizeof(f64));
 
     /* Complex S with nonzero imaginary parts */
     S[0] = 1.0 + 0.5*I;  S[1] = -1.0 + 0.3*I;
@@ -271,7 +273,7 @@ TEST(z_rr_4x4) {
     S[4] = 1.0 - 0.3*I;  S[5] = 1.0 + 0.5*I;
     S[6] = -1.0 + 0.4*I; S[7] = -2.0 - 0.2*I;
 
-    z_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, NULL);
+    z_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, rr_D, &A, NULL);
 
     c64 *X_new = xcalloc(n * nev, sizeof(c64));
     z_gemm_nn(n, nev, nev, (c64)1, S, Cx, (c64)0, X_new);
@@ -291,7 +293,7 @@ TEST(z_rr_4x4) {
 
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&X_new);
+    safe_free((void**)&rr_D); safe_free((void**)&X_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
 
@@ -321,10 +323,11 @@ TEST(d_rr_4x4_with_B) {
     f64 *wrk1 = xcalloc(nev * nev, sizeof(f64));
     f64 *wrk2 = xcalloc(n * nev, sizeof(f64));
     f64 *wrk3 = xcalloc(nev * nev, sizeof(f64));
+    f64 *rr_D = xcalloc(nev, sizeof(f64));
 
     memcpy(S, S4x2_d, n * nev * sizeof(f64));
 
-    d_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, &A, &B);
+    d_rayleigh_ritz(n, nev, S, Cx, eigVal, wrk1, wrk2, wrk3, rr_D, &A, &B);
 
     /* Generalized eigenvalues should be half of standard */
     ASSERT_NEAR(eigVal[0], eigVal_ref_4x4[0] / 2.0, 1e-4);
@@ -336,14 +339,6 @@ TEST(d_rr_4x4_with_B) {
 
     f64 rq_err = rayleigh_diag_d(n, nev, ctxA->A, X_new, eigVal);
     printf("rq=%.2e ", rq_err);
-    /* For generalized: X^T*A*X = Lambda * X^T*B*X = Lambda * 2*I
-     * So X^T*A*X should be diag(2*eigVal) */
-    /* Actually, let me compute it directly */
-
-    /* For gen eig: X^T*A*X = diag(eigVal) * X^T*B*X
-     * If X is B-orthonormal: X^T*B*X = I, then X^T*A*X = diag(eigVal)
-     * But eigVal here are gen eigenvalues, so X^T*A*X = diag(eigVal) only if
-     * X is B-orthonormal. RR produces B-orthonormal X, so this should hold. */
 
     /* Check B-orthonormality: X^T * (2I) * X = I  → X^T*X = 0.5*I */
     f64 *G = xcalloc(nev * nev, sizeof(f64));
@@ -359,7 +354,7 @@ TEST(d_rr_4x4_with_B) {
 
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
-    safe_free((void**)&X_new); safe_free((void**)&G);
+    safe_free((void**)&rr_D); safe_free((void**)&X_new); safe_free((void**)&G);
     safe_free((void**)&ctxA->A); safe_free((void**)&ctxA); safe_free((void**)&ctxB);
 }
 
@@ -386,12 +381,16 @@ TEST(d_rr_modified_ortho) {
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
     f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *rr_eigvals = xcalloc(sizeSub, sizeof(f64));
+    f64 *rr_tau = xcalloc(sizeSub, sizeof(f64));
+    f64 *rr_D = xcalloc(sizeSub, sizeof(f64));
 
     memcpy(S, S6x4_d, n * sizeSub * sizeof(f64));
 
     uint8_t useOrtho = 1;
     d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
+                             rr_eigvals, rr_tau, rr_D, &A, NULL);
 
     ASSERT(1 == useOrtho);
 
@@ -409,6 +408,7 @@ TEST(d_rr_modified_ortho) {
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
     safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&rr_eigvals); safe_free((void**)&rr_tau); safe_free((void**)&rr_D);
     safe_free((void**)&X_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
@@ -436,6 +436,9 @@ TEST(z_rr_modified_ortho) {
     c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
     c64 *wrk2 = xcalloc(n * sizeSub, sizeof(c64));
     c64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(c64));
+    f64 *rr_eigvals = xcalloc(sizeSub, sizeof(f64));
+    c64 *rr_tau = xcalloc(sizeSub, sizeof(c64));
+    f64 *rr_D = xcalloc(sizeSub, sizeof(f64));
 
     /* Complex S with nonzero imaginary parts */
     for (uint64_t i = 0; i < n * sizeSub; i++)
@@ -443,7 +446,8 @@ TEST(z_rr_modified_ortho) {
 
     uint8_t useOrtho = 1;
     z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
+                             rr_eigvals, rr_tau, rr_D, &A, NULL);
 
     ASSERT(1 == useOrtho);
 
@@ -461,6 +465,7 @@ TEST(z_rr_modified_ortho) {
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
     safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&rr_eigvals); safe_free((void**)&rr_tau); safe_free((void**)&rr_D);
     safe_free((void**)&X_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
@@ -488,12 +493,16 @@ TEST(d_rr_modified_chol) {
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
     f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *rr_eigvals = xcalloc(sizeSub, sizeof(f64));
+    f64 *rr_tau = xcalloc(sizeSub, sizeof(f64));
+    f64 *rr_D = xcalloc(sizeSub, sizeof(f64));
 
     memcpy(S, S6x4_d, n * sizeSub * sizeof(f64));
 
     uint8_t useOrtho = 0;
     d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
+                             rr_eigvals, rr_tau, rr_D, &A, NULL);
 
     ASSERT(0 == useOrtho);
 
@@ -518,6 +527,7 @@ TEST(d_rr_modified_chol) {
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
     safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&rr_eigvals); safe_free((void**)&rr_tau); safe_free((void**)&rr_D);
     safe_free((void**)&X_new); safe_free((void**)&P_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
@@ -545,6 +555,9 @@ TEST(z_rr_modified_chol) {
     c64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(c64));
     c64 *wrk2 = xcalloc(n * sizeSub, sizeof(c64));
     c64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(c64));
+    f64 *rr_eigvals = xcalloc(sizeSub, sizeof(f64));
+    c64 *rr_tau = xcalloc(sizeSub, sizeof(c64));
+    f64 *rr_D = xcalloc(sizeSub, sizeof(f64));
 
     /* Complex S */
     for (uint64_t i = 0; i < n * sizeSub; i++)
@@ -552,7 +565,8 @@ TEST(z_rr_modified_chol) {
 
     uint8_t useOrtho = 0;
     z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
+                             rr_eigvals, rr_tau, rr_D, &A, NULL);
 
     ASSERT(0 == useOrtho);
 
@@ -573,6 +587,7 @@ TEST(z_rr_modified_chol) {
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
     safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&rr_eigvals); safe_free((void**)&rr_tau); safe_free((void**)&rr_D);
     safe_free((void**)&X_new); safe_free((void**)&P_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }
@@ -607,10 +622,14 @@ TEST(d_rr_modified_mult3) {
     f64 *wrk1 = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *wrk2 = xcalloc(n * sizeSub, sizeof(f64));
     f64 *wrk3 = xcalloc(sizeSub * sizeSub, sizeof(f64));
+    f64 *rr_eigvals = xcalloc(sizeSub, sizeof(f64));
+    f64 *rr_tau = xcalloc(sizeSub, sizeof(f64));
+    f64 *rr_D = xcalloc(sizeSub, sizeof(f64));
 
     uint8_t useOrtho = 1;
     d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
-                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal, &A, NULL);
+                             S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
+                             rr_eigvals, rr_tau, rr_D, &A, NULL);
 
     ASSERT(1 == useOrtho);
 
@@ -628,6 +647,7 @@ TEST(d_rr_modified_mult3) {
     safe_free((void**)&S);    safe_free((void**)&Cx);   safe_free((void**)&Cp);
     safe_free((void**)&eigVal);
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+    safe_free((void**)&rr_eigvals); safe_free((void**)&rr_tau); safe_free((void**)&rr_D);
     safe_free((void**)&X_new);
     safe_free((void**)&ctx->A); safe_free((void**)&ctx);
 }

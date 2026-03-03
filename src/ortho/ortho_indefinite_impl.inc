@@ -42,7 +42,11 @@ static void FN(fill_lower_oi)(uint64_t n, CTYPE *A) {
   for (uint64_t j = 0; j < n; j++)
     for (uint64_t i = j + 1; i < n; i++)
 #ifdef CTYPE_IS_COMPLEX
+  #ifdef TYPE_IS_FLOAT
+      A[i + j*n] = conjf(A[j + i*n]);
+  #else
       A[i + j*n] = conj(A[j + i*n]);
+  #endif
 #else
   A[i + j*n] = A[j + i*n];
 #endif

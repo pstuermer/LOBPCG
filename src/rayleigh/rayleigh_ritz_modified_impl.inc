@@ -60,6 +60,9 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
                                 CTYPE *restrict wrk3,
                                 CTYPE *restrict Cx, CTYPE *restrict Cp,
                                 RTYPE *restrict eigVal,
+                                RTYPE *restrict rr_eigvals,
+                                CTYPE *restrict rr_tau,
+                                RTYPE *restrict rr_D,
                                 LINOP *A, LINOP *B) {
   (void)nconv;  /* TODO: implement soft-locking */
   (void)ndrop;
@@ -70,9 +73,9 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
   const uint64_t sizeSub = mult * nx;
   const uint64_t n_remainder = (mult - 1) * nx;
 
-  RTYPE *restrict eigvals_r = xcalloc(sizeSub, sizeof(RTYPE));
-  CTYPE *restrict tau = xcalloc(sizeSub, sizeof(CTYPE));
-  RTYPE *D = NULL;  /* only allocated in Cholesky branch */
+  RTYPE *restrict eigvals_r = rr_eigvals;
+  CTYPE *restrict tau = rr_tau;
+  RTYPE *D = rr_D;
 
   /* ================================================================
    * Ortho branch: useOrtho==1
@@ -160,8 +163,6 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
    * Cholesky branch: useOrtho==0
    * Gram matrix + Cholesky + condition check + D_inv_R transform
    * ================================================================ */
-  D = xcalloc(sizeSub, sizeof(RTYPE));
-
   /* 1. Gram matrix G = S^H * B * S in wrk1 (upper triangle) */
   memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
   FN(gram_self)(S, size, sizeSub, B, wrk1, sizeSub, wrk2);
@@ -292,9 +293,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
   }
 
 cleanup:
-  safe_free((void**)&eigvals_r);
-  safe_free((void**)&D);
-  safe_free((void**)&tau);
+  (void)0;
 }
 
 #undef CONCAT2

@@ -14,12 +14,22 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
-#ifdef CTYPE_IS_COMPLEX
-#define CABS(x) cabs(x)
-#define CREAL(x) creal(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #define CREAL(x) (x)
+  #endif
 #else
-#define CABS(x) fabs(x)
-#define CREAL(x) (x)
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabs(x)
+  #define CREAL(x) (x)
+  #endif
 #endif
 
 /* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
@@ -74,8 +84,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     return;
   }
 
-  const RTYPE eps_ortho = 1e-12;
-  const RTYPE eps_drop = 1e-12;
+  const RTYPE eps_ortho = (RTYPE)EPS_TOL;
+  const RTYPE eps_drop = (RTYPE)EPS_TOL;
 
   /* Pointers into S = [X, P, W] */
   CTYPE *restrict X = alg->S;
@@ -90,13 +100,14 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
   /* Initialize eigenvectors if needed (check if S is zero) */
   RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
-  if (x_norm < 1e-14) {
+  if (x_norm < (RTYPE)EPS_TOL) {
     FN(fill_random)(size * sizeSub, X);
   }
 
   /* Initial Rayleigh-Ritz on X */
   FN(rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
-		    alg->wrk1, alg->wrk2, alg->wrk3, alg->A, alg->B);
+		    alg->wrk1, alg->wrk2, alg->wrk3,
+		    alg->rr_D, alg->A, alg->B);
 
   /* Project back: X = X * Cx */
   FN(project_back)(size, sizeSub, 1, X, alg->Cx, X, alg->wrk4);
@@ -150,7 +161,9 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     /* Modified Rayleigh-Ritz */
     FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
 			       alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
-			       alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
+			       alg->Cx, alg->Cp, alg->eigVals,
+			       alg->rr_eigvals, alg->rr_tau, alg->rr_D,
+			       alg->A, alg->B);
 
     /* If condition check failed: set useOrtho and retry */
     if (2 == useOrtho) {
@@ -170,7 +183,9 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
       /* Retry RR with useOrtho=1 */
       FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
 				 alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
-				 alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
+				 alg->Cx, alg->Cp, alg->eigVals,
+				 alg->rr_eigvals, alg->rr_tau, alg->rr_D,
+				 alg->A, alg->B);
     }
 
     /* redefine P and W after first iteration */
@@ -225,5 +240,6 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 #undef CONCAT2
 #undef CONCAT
 #undef FN
+#undef EPS_TOL
 #undef CABS
 #undef CREAL

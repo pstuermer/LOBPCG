@@ -17,12 +17,22 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
-#ifdef CTYPE_IS_COMPLEX
-#define CABS(x) cabs(x)
-#define CREAL(x) creal(x)
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #define CREAL(x) (x)
+  #endif
 #else
-#define CABS(x) fabs(x)
-#define CREAL(x) (x)
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabs(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabs(x)
+  #define CREAL(x) (x)
+  #endif
 #endif
 
 /* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
@@ -58,9 +68,8 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   const uint64_t nev = alg->nev;
   const uint64_t sizeSub = alg->sizeSub;
     
-  // TODO: these need to be machine-precision dependent
-  const RTYPE eps_ortho = 1e-11;
-  const RTYPE eps_drop = 1e-12;
+  const RTYPE eps_ortho = (RTYPE)EPS_TOL;
+  const RTYPE eps_drop = (RTYPE)EPS_TOL;
 
   /* B must not be NULL for indefinite problem */
   if (NULL == alg->B) {
@@ -83,18 +92,19 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   // also need to pay attention to inertia of these
   // vectors (see reference implementation)
   const RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
-  if (x_norm < 1e-14) {
+  if (x_norm < (RTYPE)EPS_TOL) {
     FN(fill_random)(size * sizeSub, X);
   }
 
   /* B-orthonormalize X via svqb */
-  FN(svqb)(size, sizeSub, (RTYPE)1e-12, 'n', X,
+  FN(svqb)(size, sizeSub, (RTYPE)EPS_TOL, 'n', X,
 	   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
 
   /* Initial indefinite Rayleigh-Ritz on X */
   FN(indefinite_rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
 			       alg->signature,
 			       alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
+			       alg->rr_indices, alg->rr_ggev,
 			       alg->A, alg->B);
 
   /* Project back: X = X * Cx (use wrk4 as temp) */
@@ -159,7 +169,10 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 					  alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
 					  alg->Cx, alg->Cp, Cx_ortho,
 					  alg->eigVals, alg->signature,
-					  &quality_flag, alg->A, alg->B);
+					  &quality_flag,
+					  alg->rr_eigvals, alg->rr_sig,
+					  alg->rr_indices, alg->rr_VR,
+					  alg->rr_ggev, alg->A, alg->B);
 
     /* redefine P and W after first iteration */
     P = alg->S + size*sizeSub;
@@ -247,5 +260,6 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 #undef CONCAT2
 #undef CONCAT
 #undef FN
+#undef EPS_TOL
 #undef CABS
 #undef CREAL

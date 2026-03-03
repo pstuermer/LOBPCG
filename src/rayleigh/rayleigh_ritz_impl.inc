@@ -49,9 +49,10 @@
 void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
                        CTYPE *restrict S, CTYPE *restrict Cx, RTYPE *restrict eigVal,
                        CTYPE *restrict wrk1, CTYPE *restrict wrk2, CTYPE *restrict wrk3,
+                       RTYPE *restrict rr_D,
                        LINOP *A, LINOP *B) {
 
-  RTYPE *D = xcalloc(sizeSub, sizeof(RTYPE));
+  RTYPE *D = rr_D;
 
   /* 1. Gram matrix G = S^H * B * S in wrk1 (sizeSub x sizeSub, upper triangle) */
   memset(wrk1, 0, sizeSub * sizeSub * sizeof(CTYPE));
@@ -107,7 +108,7 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, wrk1, (CTYPE)0, Cx);
 
 cleanup:
-  safe_free((void**)&D);
+  (void)0;
 }
 
 #undef CONCAT2

@@ -28,6 +28,14 @@
     ctype *restrict wrk2;                           \
     ctype *restrict wrk3;                           \
     ctype *restrict wrk4;                           \
+                                                    \
+    rtype *restrict rr_D;                           \
+    rtype *restrict rr_eigvals;                     \
+    ctype *restrict rr_tau;                         \
+    ctype *restrict rr_VR;                          \
+    int8_t *restrict rr_sig;                        \
+    uint64_t *restrict rr_indices;                  \
+    ctype *restrict rr_ggev;                        \
 						    \
     int8_t implicit_product_update;		    \
                                                     \
@@ -150,19 +158,20 @@ TYPE_LIST(DECLARE_RESIDUAL_NORM)
                               ctype *restrict wrk1,        \
                               ctype *restrict wrk2,        \
                               ctype *restrict wrk3,        \
+                              rtype *restrict rr_D,        \
                               linop *A,                    \
                               linop *B);
 
 TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
 #undef DECLARE_RAYLEIGH_RITZ
 
-#define rayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, A, B) \
+#define rayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, rr_D, A, B) \
   _Generic((S),                     \
     f32 *: s_rayleigh_ritz,         \
     f64 *: d_rayleigh_ritz,         \
     c32 *: c_rayleigh_ritz,         \
     c64 *: z_rayleigh_ritz          \
-  )(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, A, B)
+  )(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, rr_D, A, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: rayleigh_ritz_modified
@@ -183,6 +192,9 @@ TYPE_LIST(DECLARE_RAYLEIGH_RITZ)
                                        ctype *restrict Cx,     \
                                        ctype *restrict Cp,     \
                                        rtype *restrict eigVal, \
+                                       rtype *restrict rr_eigvals, \
+                                       ctype *restrict rr_tau, \
+                                       rtype *restrict rr_D,   \
                                        linop *A,               \
                                        linop *B);
 
@@ -190,13 +202,15 @@ TYPE_LIST(DECLARE_RR_MODIFIED)
 #undef DECLARE_RR_MODIFIED
 
 #define rayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,       \
-                               S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B) \
+                               S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal,    \
+                               rr_eigvals, rr_tau, rr_D, A, B)              \
   _Generic((S),                             \
     f32 *: s_rayleigh_ritz_modified,        \
     f64 *: d_rayleigh_ritz_modified,        \
     c32 *: c_rayleigh_ritz_modified,        \
     c64 *: z_rayleigh_ritz_modified         \
-  )(size, nx, mult, nconv, ndrop, useOrtho, S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)
+  )(size, nx, mult, nconv, ndrop, useOrtho, S, AX, wrk1, wrk2, wrk3,       \
+    Cx, Cp, eigVal, rr_eigvals, rr_tau, rr_D, A, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: svqb
@@ -352,19 +366,23 @@ TYPE_LIST(DECLARE_ORTHO_INDEFINITE_MAT)
       int8_t *restrict signature,                                    \
       ctype *restrict wrk1, ctype *restrict wrk2,                   \
       ctype *restrict wrk3, ctype *restrict wrk4,                   \
+      uint64_t *restrict rr_indices,                                 \
+      ctype *restrict rr_ggev,                                       \
       linop *A, linop *B);
 
 TYPE_LIST(DECLARE_INDEF_RR)
 #undef DECLARE_INDEF_RR
 
 #define indefinite_rayleigh_ritz(size, sizeSub, S, Cx, eigVal, sig,   \
-                                  wrk1, wrk2, wrk3, wrk4, A, B)       \
+                                  wrk1, wrk2, wrk3, wrk4,             \
+                                  rr_indices, rr_ggev, A, B)           \
   _Generic((S),                                 \
     f32 *: s_indefinite_rayleigh_ritz,          \
     f64 *: d_indefinite_rayleigh_ritz,          \
     c32 *: c_indefinite_rayleigh_ritz,          \
     c64 *: z_indefinite_rayleigh_ritz           \
-  )(size, sizeSub, S, Cx, eigVal, sig, wrk1, wrk2, wrk3, wrk4, A, B)
+  )(size, sizeSub, S, Cx, eigVal, sig, wrk1, wrk2, wrk3, wrk4,      \
+    rr_indices, rr_ggev, A, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: indefinite_rayleigh_ritz_modified
@@ -378,10 +396,13 @@ TYPE_LIST(DECLARE_INDEF_RR)
       ctype *restrict S, const ctype *restrict AX,                       \
       ctype *restrict wrk1,                                              \
       ctype *restrict wrk2, ctype *restrict wrk3, ctype *restrict wrk4, \
-      ctype *restrict Cx, ctype *restrict Cp,                            \
-      ctype *restrict Cx_ortho,                                           \
+      ctype *Cx, ctype *restrict Cp,                                     \
+      ctype *Cx_ortho,                                                   \
       rtype *restrict eigVal, int8_t *restrict signature,                \
       int *restrict quality_flag,                                        \
+      rtype *restrict rr_eigvals, int8_t *restrict rr_sig,              \
+      uint64_t *restrict rr_indices, ctype *restrict rr_VR,             \
+      ctype *restrict rr_ggev,                                           \
       linop *A, linop *B);
 
 TYPE_LIST(DECLARE_INDEF_RR_MOD)
@@ -390,14 +411,17 @@ TYPE_LIST(DECLARE_INDEF_RR_MOD)
 #define indefinite_rayleigh_ritz_modified(size, nx, mult, nconv, ndrop,         \
                                           S, AX, wrk1, wrk2, wrk3, wrk4,      \
                                           Cx, Cp, Cx_ortho,                     \
-                                          eigVal, sig, quality_flag, A, B)      \
+                                          eigVal, sig, quality_flag,            \
+                                          rr_eigvals, rr_sig, rr_indices,      \
+                                          rr_VR, rr_ggev, A, B)                \
   _Generic((S),                                         \
     f32 *: s_indefinite_rayleigh_ritz_modified,         \
     f64 *: d_indefinite_rayleigh_ritz_modified,         \
     c32 *: c_indefinite_rayleigh_ritz_modified,         \
     c64 *: z_indefinite_rayleigh_ritz_modified          \
   )(size, nx, mult, nconv, ndrop, S, AX, wrk1, wrk2, wrk3, wrk4,             \
-    Cx, Cp, Cx_ortho, eigVal, sig, quality_flag, A, B)
+    Cx, Cp, Cx_ortho, eigVal, sig, quality_flag,                               \
+    rr_eigvals, rr_sig, rr_indices, rr_VR, rr_ggev, A, B)
 
 /* --------------------------------------------------------------------
  * Function declarations: Gram matrix helpers
@@ -543,18 +567,25 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
 #define c_krayleigh_ritz_modified  c_rayleigh_ritz_modified
 #define z_krayleigh_ritz_modified  z_rayleigh_ritz_modified
 
-#define krayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, A, B) \
-  rayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, A, B)
+#define krayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3,       \
+                       rr_D, A, B)                                           \
+  rayleigh_ritz(size, sizeSub, S, Cx, eigVal, wrk1, wrk2, wrk3, rr_D, A, B)
 
 #define krayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,       \
-                                S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B) \
+                                S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal,    \
+                                rr_eigvals, rr_tau, rr_D, A, B)              \
   rayleigh_ritz_modified(size, nx, mult, nconv, ndrop, useOrtho,              \
-                         S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal, A, B)
+                         S, AX, wrk1, wrk2, wrk3, Cx, Cp, eigVal,            \
+                         rr_eigvals, rr_tau, rr_D, A, B)
 
 /* --------------------------------------------------------------------
  * lobpcg_alloc / lobpcg_free
  * Allocate and free LOBPCG state structures
  * ------------------------------------------------------------------ */
+#ifndef LOBPCG_MAX
+#define LOBPCG_MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
 #define DEFINE_LOBPCG_ALLOC(prefix, ctype, rtype, linop)		\
   static inline prefix##_lobpcg_t *prefix##_lobpcg_alloc(		\
 			  uint64_t n, uint64_t nev, uint64_t sizeSub) { \
@@ -562,16 +593,22 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
     alg->size = n;							\
     alg->sizeSub = sizeSub;						\
     alg->nev = nev;							\
-    alg->S = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->AX = xcalloc(n*sizeSub, sizeof(ctype));			\
-    alg->Cx = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
-    alg->Cp = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
+    const uint64_t ns = n * sizeSub;					\
+    const uint64_t ss9 = 9 * sizeSub * sizeSub;				\
+    alg->S = xcalloc(3*ns, sizeof(ctype));				\
+    alg->AX = xcalloc(ns, sizeof(ctype));				\
+    alg->Cx = xcalloc(ss9, sizeof(ctype));				\
+    alg->Cp = xcalloc(ss9, sizeof(ctype));				\
     alg->eigVals = xcalloc(sizeSub, sizeof(rtype));			\
     alg->resNorm = xcalloc(sizeSub, sizeof(rtype));			\
-    alg->wrk1 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->wrk2 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->wrk3 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->wrk4 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->wrk1 = xcalloc(LOBPCG_MAX(2*ns, ss9), sizeof(ctype));		\
+    alg->wrk2 = xcalloc(3*ns, sizeof(ctype));				\
+    alg->wrk3 = xcalloc(LOBPCG_MAX(ns, ss9), sizeof(ctype));		\
+    alg->wrk4 = xcalloc(LOBPCG_MAX(2*ns, ss9), sizeof(ctype));		\
+    /* RR buffers sized for modified RR where sizeSub_local = mult*nx, mult<=3 */ \
+    alg->rr_D = xcalloc(3 * sizeSub, sizeof(rtype));			\
+    alg->rr_eigvals = xcalloc(3 * sizeSub, sizeof(rtype));		\
+    alg->rr_tau = xcalloc(3 * sizeSub, sizeof(ctype));			\
     return alg;								\
   }
 
@@ -597,6 +634,13 @@ TYPE_LIST(DEFINE_LOBPCG_ALLOC)
     safe_free((void**)&(*alg)->wrk2);                                       \
     safe_free((void**)&(*alg)->wrk3);                                       \
     safe_free((void**)&(*alg)->wrk4);                                       \
+    safe_free((void**)&(*alg)->rr_D);                                       \
+    safe_free((void**)&(*alg)->rr_eigvals);                                 \
+    safe_free((void**)&(*alg)->rr_tau);                                     \
+    safe_free((void**)&(*alg)->rr_VR);                                      \
+    safe_free((void**)&(*alg)->rr_sig);                                     \
+    safe_free((void**)&(*alg)->rr_indices);                                 \
+    safe_free((void**)&(*alg)->rr_ggev);                                    \
     safe_free((void**)alg);                                                 \
   }
 
@@ -619,6 +663,18 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
       		      uint64_t n, uint64_t nev, uint64_t sizeSub) {     \
     prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev, sizeSub);	\
     alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
+    /* sized for modified RR: sizeSub_local = mult*nx, mult<=3 */	\
+    alg->rr_VR = xcalloc(9 * sizeSub * sizeSub, sizeof(ctype));	\
+    alg->rr_sig = xcalloc(3 * sizeSub, sizeof(int8_t));		\
+    alg->rr_indices = xcalloc(3 * sizeSub, sizeof(uint64_t));		\
+    alg->rr_ggev = xcalloc(9 * sizeSub, sizeof(ctype));		\
+    /* ilobpcg quality=5 path needs 3*n*sizeSub for wrk4 */		\
+    const uint64_t ns3 = 3 * n * sizeSub;				\
+    const uint64_t cur = LOBPCG_MAX(2*n*sizeSub, 9*sizeSub*sizeSub);	\
+    if (cur < ns3) {							\
+      safe_free((void**)&alg->wrk4);					\
+      alg->wrk4 = xcalloc(ns3, sizeof(ctype));				\
+    }									\
     return alg;								\
   }
 

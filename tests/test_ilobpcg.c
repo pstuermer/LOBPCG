@@ -90,6 +90,37 @@ static void block_illcond_matvec_d(const LinearOperator_d_t *op,
 }
 
 /* ================================================================
+ * Block-Laplacian A (float): same structure, f32 types
+ * ================================================================ */
+
+static void block_laplacian_matvec_s(const LinearOperator_s_t *op,
+                                     f32 *restrict x, f32 *restrict y) {
+    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx;
+    uint64_t m = ctx->m;
+    f32 c = (f32)ctx->h2_inv;
+
+    for (uint64_t blk = 0; blk < 2; blk++) {
+        uint64_t off = blk * m;
+        y[off] = c * (2.0f * x[off] - x[off + 1]);
+        for (uint64_t i = 1; i < m - 1; i++)
+            y[off + i] = c * (-x[off + i - 1] + 2.0f * x[off + i] - x[off + i + 1]);
+        y[off + m - 1] = c * (-x[off + m - 2] + 2.0f * x[off + m - 1]);
+    }
+}
+
+/* ================================================================
+ * Block-permutation B (float): swaps top/bottom halves
+ * ================================================================ */
+
+static void block_perm_matvec_s(const LinearOperator_s_t *op,
+                                f32 *restrict x, f32 *restrict y) {
+    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx;
+    uint64_t m = ctx->m;
+    memcpy(y,     x + m, m * sizeof(f32));
+    memcpy(y + m, x,     m * sizeof(f32));
+}
+
+/* ================================================================
  * Block-Laplacian A (complex double): same structure, c64 types
  * ================================================================ */
 
@@ -328,12 +359,77 @@ TEST(d_ilobpcg_quality5) {
   safe_free((void **)&ctx_a);
 }
 
+/* ================================================================
+ * Test 4: Block-Laplacian + block-permutation B (float)
+ *   Same as Test 1 but with f32 types, relaxed tolerance
+ * ================================================================ */
+TEST(s_ilobpcg_block_laplacian) {
+    const uint64_t m = 50;
+    const uint64_t n = 2 * m;
+    const uint64_t nev = 3, sizeSub = 5;
+    const uint64_t maxIter = 500;
+    const f32 tol = 1e-3f;
+
+    f64 L = 1.0;
+    f64 h = L / (m + 1);
+
+    /* Block-Laplacian A */
+    block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
+    ctx_a->m = m;
+    ctx_a->h2_inv = 1.0 / (h * h);
+    LinearOperator_s_t A = { .rows = n, .cols = n,
+                             .matvec = (matvec_func_s_t)block_laplacian_matvec_s,
+                             .ctx = (linop_ctx_t *)ctx_a };
+
+    /* Block-permutation B */
+    block_perm_ctx_t *ctx_b = xcalloc(1, sizeof(block_perm_ctx_t));
+    ctx_b->m = m;
+    LinearOperator_s_t B = { .rows = n, .cols = n,
+                             .matvec = (matvec_func_s_t)block_perm_matvec_s,
+                             .ctx = (linop_ctx_t *)ctx_b };
+
+    s_lobpcg_t *alg = s_ilobpcg_alloc(n, nev, sizeSub);
+    alg->A = &A;
+    alg->B = &B;
+    alg->T = NULL;
+    alg->maxIter = maxIter;
+    alg->tol = tol;
+
+    /* B-positive initialization: top = bottom halves */
+    srand(42);
+    for (uint64_t k = 0; k < sizeSub; k++) {
+        for (uint64_t j = 0; j < m; j++) {
+            f32 val = (f32)rand() / RAND_MAX - 0.5f;
+            alg->S[j + k * n]     = val;
+            alg->S[m + j + k * n] = val;
+        }
+    }
+
+    s_ilobpcg(alg);
+
+    printf("conv=%lu iter=%lu ", (unsigned long)alg->converged,
+           (unsigned long)alg->iter);
+    ASSERT(alg->converged == nev);
+
+    for (uint64_t k = 1; k <= nev; k++) {
+        f32 exact = (f32)((k * PI) * (k * PI));
+        ASSERT(alg->eigVals[k - 1] > 0);
+        f32 rel_err = fabsf(alg->eigVals[k - 1] - exact) / exact;
+        ASSERT(rel_err < 0.01f);
+    }
+
+    s_lobpcg_free(&alg);
+    safe_free((void **)&ctx_a);
+    safe_free((void **)&ctx_b);
+}
+
 /* ================================================================ */
 int main(void) {
     printf("Indefinite LOBPCG tests:\n");
     RUN(d_ilobpcg_block_laplacian);
     RUN(z_ilobpcg_block_laplacian);
     RUN(d_ilobpcg_quality5);
+    RUN(s_ilobpcg_block_laplacian);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
