@@ -555,6 +555,10 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
  * lobpcg_alloc / lobpcg_free
  * Allocate and free LOBPCG state structures
  * ------------------------------------------------------------------ */
+#ifndef LOBPCG_MAX
+#define LOBPCG_MAX(a, b) ((a) > (b) ? (a) : (b))
+#endif
+
 #define DEFINE_LOBPCG_ALLOC(prefix, ctype, rtype, linop)		\
   static inline prefix##_lobpcg_t *prefix##_lobpcg_alloc(		\
 			  uint64_t n, uint64_t nev, uint64_t sizeSub) { \
@@ -562,16 +566,18 @@ TYPE_LIST(DECLARE_ESTIMATE_NORM)
     alg->size = n;							\
     alg->sizeSub = sizeSub;						\
     alg->nev = nev;							\
-    alg->S = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->AX = xcalloc(n*sizeSub, sizeof(ctype));			\
-    alg->Cx = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
-    alg->Cp = xcalloc(3*3*sizeSub*sizeSub, sizeof(ctype));		\
+    const uint64_t ns = n * sizeSub;					\
+    const uint64_t ss9 = 9 * sizeSub * sizeSub;				\
+    alg->S = xcalloc(3*ns, sizeof(ctype));				\
+    alg->AX = xcalloc(ns, sizeof(ctype));				\
+    alg->Cx = xcalloc(ss9, sizeof(ctype));				\
+    alg->Cp = xcalloc(ss9, sizeof(ctype));				\
     alg->eigVals = xcalloc(sizeSub, sizeof(rtype));			\
     alg->resNorm = xcalloc(sizeSub, sizeof(rtype));			\
-    alg->wrk1 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->wrk2 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->wrk3 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
-    alg->wrk4 = xcalloc(3*n*sizeSub, sizeof(ctype));			\
+    alg->wrk1 = xcalloc(LOBPCG_MAX(2*ns, ss9), sizeof(ctype));		\
+    alg->wrk2 = xcalloc(3*ns, sizeof(ctype));				\
+    alg->wrk3 = xcalloc(LOBPCG_MAX(ns, ss9), sizeof(ctype));		\
+    alg->wrk4 = xcalloc(LOBPCG_MAX(2*ns, ss9), sizeof(ctype));		\
     return alg;								\
   }
 
@@ -619,6 +625,13 @@ TYPE_LIST(DEFINE_LOBPCG_FREE)
       		      uint64_t n, uint64_t nev, uint64_t sizeSub) {     \
     prefix##_lobpcg_t *alg = prefix##_lobpcg_alloc(n, nev, sizeSub);	\
     alg->signature = xcalloc(3*sizeSub, sizeof(int8_t));		\
+    /* ilobpcg quality=5 path needs 3*n*sizeSub for wrk4 */		\
+    const uint64_t ns3 = 3 * n * sizeSub;				\
+    const uint64_t cur = LOBPCG_MAX(2*n*sizeSub, 9*sizeSub*sizeSub);	\
+    if (cur < ns3) {							\
+      safe_free((void**)&alg->wrk4);					\
+      alg->wrk4 = xcalloc(ns3, sizeof(ctype));				\
+    }									\
     return alg;								\
   }
 
