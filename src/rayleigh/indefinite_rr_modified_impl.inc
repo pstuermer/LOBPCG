@@ -77,8 +77,8 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
                                            const CTYPE *restrict AX,
                                            CTYPE *restrict wrk1, CTYPE *restrict wrk2,
                                            CTYPE *restrict wrk3, CTYPE *restrict wrk4,
-                                           CTYPE *restrict Cx, CTYPE *restrict Cp,
-                                           CTYPE *restrict Cx_ortho,
+                                           CTYPE *Cx, CTYPE *restrict Cp,
+                                           CTYPE *Cx_ortho,
                                            RTYPE *restrict eigVal,
                                            int8_t *restrict signature,
                                            int *restrict quality_flag,
@@ -171,13 +171,15 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   }
 
   /* 6b. B-normalize eigenvectors (second pass) + extract signatures
-   *     Double normalization improves B-orthogonality (ref ilobpcg.c:608-622) */
+   *     Double normalization improves B-orthogonality (ref ilobpcg.c:608-622)
+   *     TODO: measure whether this reduces quality=5 fallback frequency
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
 #ifdef CTYPE_IS_COMPLEX
   FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #else
   FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #endif
+  */
 
   for (uint64_t i = 0; i < sizeSub; i++) {
     const CTYPE diag_val = wrk4[i + i * sizeSub];

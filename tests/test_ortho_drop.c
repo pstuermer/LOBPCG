@@ -281,6 +281,31 @@ TEST(z_ortho_drop_with_B) {
     linop_destroy_z(&B);
 }
 
+TEST(d_ortho_drop_retval) {
+    /* Verify ortho_drop returns n_u (columns retained) instead of 0 */
+    const uint64_t m = 100, n_u = 10, n_v = 10;
+    const f64 eps = 1e-14;
+    const uint64_t max_n = n_u > n_v ? n_u : n_v;
+
+    f64 *U    = xcalloc(m * n_u, sizeof(f64));
+    f64 *V    = xcalloc(m * n_v, sizeof(f64));
+    f64 *wrk1 = xcalloc(m * (n_u + n_v), sizeof(f64));
+    f64 *wrk2 = xcalloc(m * max_n, sizeof(f64));
+    f64 *wrk3 = xcalloc(m * max_n, sizeof(f64));
+
+    for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand() / RAND_MAX;
+    for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand() / RAND_MAX;
+    d_svqb(m, n_v, eps, 'n', V, wrk1, wrk2, wrk3, NULL);
+
+    uint64_t result = d_ortho_drop(m, n_u, n_v, eps, eps,
+                                    U, V, wrk1, wrk2, wrk3, NULL);
+    printf("ret=%lu ", (unsigned long)result);
+    ASSERT(result == n_u);
+
+    safe_free((void**)&U); safe_free((void**)&V);
+    safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
 int main(void) {
     srand((unsigned)time(NULL));
 
@@ -289,6 +314,7 @@ int main(void) {
     RUN(d_ortho_drop_with_B);
     RUN(z_ortho_drop_no_B);
     RUN(z_ortho_drop_with_B);
+    RUN(d_ortho_drop_retval);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);

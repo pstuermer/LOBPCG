@@ -14,12 +14,22 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
-#ifdef CTYPE_IS_COMPLEX
+#ifdef TYPE_IS_FLOAT
+  #ifdef CTYPE_IS_COMPLEX
+  #define CABS(x) cabsf(x)
+  #define CREAL(x) creal(x)
+  #else
+  #define CABS(x) fabsf(x)
+  #define CREAL(x) (x)
+  #endif
+#else
+  #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabs(x)
   #define CREAL(x) creal(x)
-#else
+  #else
   #define CABS(x) fabs(x)
   #define CREAL(x) (x)
+  #endif
 #endif
 #define RABS(x) ((x) >= 0 ? (x) : -(x))
 

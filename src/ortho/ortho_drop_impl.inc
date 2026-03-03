@@ -144,7 +144,7 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
     if (rerr < eps_ortho) break;
   }
 
-  return 0; /* No column dropping implemented yet */
+  return n_u;
 }
 
 #undef CONCAT2
