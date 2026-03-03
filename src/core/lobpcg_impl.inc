@@ -84,8 +84,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     return;
   }
 
-  const RTYPE eps_ortho = 1e-12;
-  const RTYPE eps_drop = 1e-12;
+  const RTYPE eps_ortho = (RTYPE)EPS_TOL;
+  const RTYPE eps_drop = (RTYPE)EPS_TOL;
 
   /* Pointers into S = [X, P, W] */
   CTYPE *restrict X = alg->S;

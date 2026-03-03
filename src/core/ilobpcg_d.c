@@ -6,5 +6,6 @@
 #define CTYPE f64
 #define RTYPE f64
 #define LINOP LinearOperator_d_t
+#define EPS_TOL 1e-12
 
 #include "ilobpcg_impl.inc"

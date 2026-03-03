@@ -68,9 +68,8 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   const uint64_t nev = alg->nev;
   const uint64_t sizeSub = alg->sizeSub;
     
-  // TODO: these need to be machine-precision dependent
-  const RTYPE eps_ortho = 1e-11;
-  const RTYPE eps_drop = 1e-12;
+  const RTYPE eps_ortho = (RTYPE)EPS_TOL;
+  const RTYPE eps_drop = (RTYPE)EPS_TOL;
 
   /* B must not be NULL for indefinite problem */
   if (NULL == alg->B) {
