@@ -104,6 +104,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   FN(indefinite_rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
 			       alg->signature,
 			       alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
+			       alg->rr_indices, alg->rr_ggev,
 			       alg->A, alg->B);
 
   /* Project back: X = X * Cx (use wrk4 as temp) */
@@ -168,7 +169,10 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 					  alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
 					  alg->Cx, alg->Cp, Cx_ortho,
 					  alg->eigVals, alg->signature,
-					  &quality_flag, alg->A, alg->B);
+					  &quality_flag,
+					  alg->rr_eigvals, alg->rr_sig,
+					  alg->rr_indices, alg->rr_VR,
+					  alg->rr_ggev, alg->A, alg->B);
 
     /* redefine P and W after first iteration */
     P = alg->S + size*sizeSub;

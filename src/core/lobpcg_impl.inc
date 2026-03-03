@@ -106,7 +106,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
   /* Initial Rayleigh-Ritz on X */
   FN(rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
-		    alg->wrk1, alg->wrk2, alg->wrk3, alg->A, alg->B);
+		    alg->wrk1, alg->wrk2, alg->wrk3,
+		    alg->rr_D, alg->A, alg->B);
 
   /* Project back: X = X * Cx */
   FN(project_back)(size, sizeSub, 1, X, alg->Cx, X, alg->wrk4);
@@ -160,7 +161,9 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     /* Modified Rayleigh-Ritz */
     FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
 			       alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
-			       alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
+			       alg->Cx, alg->Cp, alg->eigVals,
+			       alg->rr_eigvals, alg->rr_tau, alg->rr_D,
+			       alg->A, alg->B);
 
     /* If condition check failed: set useOrtho and retry */
     if (2 == useOrtho) {
@@ -180,7 +183,9 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
       /* Retry RR with useOrtho=1 */
       FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
 				 alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
-				 alg->Cx, alg->Cp, alg->eigVals, alg->A, alg->B);
+				 alg->Cx, alg->Cp, alg->eigVals,
+				 alg->rr_eigvals, alg->rr_tau, alg->rr_D,
+				 alg->A, alg->B);
     }
 
     /* redefine P and W after first iteration */

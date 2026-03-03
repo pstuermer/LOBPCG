@@ -69,19 +69,21 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
                                   int8_t *restrict signature,
                                   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
                                   CTYPE *restrict wrk3, CTYPE *restrict wrk4,
+                                  uint64_t *restrict rr_indices,
+                                  CTYPE *restrict rr_ggev,
                                   LINOP *A, LINOP *B) {
 
   const uint64_t ss = sizeSub * sizeSub;
 
-  /* Internal allocations (O(sizeSub) only) */
-  uint64_t *indices = xcalloc(sizeSub, sizeof(uint64_t));
+  /* Pre-allocated buffers from caller */
+  uint64_t *indices = rr_indices;
 #ifdef CTYPE_IS_COMPLEX
-  CTYPE *alpha = xcalloc(sizeSub, sizeof(CTYPE));
-  CTYPE *beta  = xcalloc(sizeSub, sizeof(CTYPE));
+  CTYPE *alpha = rr_ggev;
+  CTYPE *beta  = rr_ggev + sizeSub;
 #else
-  RTYPE *alphar = xcalloc(sizeSub, sizeof(RTYPE));
-  RTYPE *alphai = xcalloc(sizeSub, sizeof(RTYPE));
-  RTYPE *beta   = xcalloc(sizeSub, sizeof(RTYPE));
+  RTYPE *alphar = rr_ggev;
+  RTYPE *alphai = rr_ggev + sizeSub;
+  RTYPE *beta   = rr_ggev + 2 * sizeSub;
 #endif
 
   /* 1. GA = S^H * A * S in wrk1 */
@@ -159,15 +161,7 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   }
 
 cleanup:
-  safe_free((void**)&indices);
-#ifdef CTYPE_IS_COMPLEX
-  safe_free((void**)&alpha);
-  safe_free((void**)&beta);
-#else
-  safe_free((void**)&alphar);
-  safe_free((void**)&alphai);
-  safe_free((void**)&beta);
-#endif
+  (void)0;
 }
 
 #undef CONCAT2

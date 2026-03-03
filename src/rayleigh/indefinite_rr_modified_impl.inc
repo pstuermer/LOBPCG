@@ -82,6 +82,11 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
                                            RTYPE *restrict eigVal,
                                            int8_t *restrict signature,
                                            int *restrict quality_flag,
+                                           RTYPE *restrict rr_eigvals,
+                                           int8_t *restrict rr_sig,
+                                           uint64_t *restrict rr_indices,
+                                           CTYPE *restrict rr_VR,
+                                           CTYPE *restrict rr_ggev,
                                            LINOP *A, LINOP *B) {
 
   (void)nconv;
@@ -91,18 +96,18 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   const uint64_t n_remainder = (mult - 1) * nx;
   const uint64_t ss = sizeSub * sizeSub;
 
-  /* Internal allocations */
-  RTYPE *eigvals_all = xcalloc(sizeSub, sizeof(RTYPE));
-  int8_t *sig_all = xcalloc(sizeSub, sizeof(int8_t));
-  uint64_t *indices = xcalloc(sizeSub, sizeof(uint64_t));
-  CTYPE *VR = xcalloc(ss, sizeof(CTYPE)); /* GGEV right eigenvectors */
+  /* Pre-allocated buffers from caller */
+  RTYPE *eigvals_all = rr_eigvals;
+  int8_t *sig_all = rr_sig;
+  uint64_t *indices = rr_indices;
+  CTYPE *VR = rr_VR;
 #ifdef CTYPE_IS_COMPLEX
-  CTYPE *alpha = xcalloc(sizeSub, sizeof(CTYPE));
-  CTYPE *beta  = xcalloc(sizeSub, sizeof(CTYPE));
+  CTYPE *alpha = rr_ggev;
+  CTYPE *beta  = rr_ggev + sizeSub;
 #else
-  RTYPE *alphar = xcalloc(sizeSub, sizeof(RTYPE));
-  RTYPE *alphai = xcalloc(sizeSub, sizeof(RTYPE));
-  RTYPE *beta   = xcalloc(sizeSub, sizeof(RTYPE));
+  RTYPE *alphar = rr_ggev;
+  RTYPE *alphai = rr_ggev + sizeSub;
+  RTYPE *beta   = rr_ggev + 2 * sizeSub;
 #endif
 
   /* 1. GA = S^H * A * S in wrk1 */
@@ -263,18 +268,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   }
 
 cleanup:
-  safe_free((void**)&eigvals_all);
-  safe_free((void**)&sig_all);
-  safe_free((void**)&indices);
-  safe_free((void**)&VR);
-#ifdef CTYPE_IS_COMPLEX
-  safe_free((void**)&alpha);
-  safe_free((void**)&beta);
-#else
-  safe_free((void**)&alphar);
-  safe_free((void**)&alphai);
-  safe_free((void**)&beta);
-#endif
+  (void)0;
 }
 
 #undef CONCAT2
