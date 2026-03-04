@@ -177,14 +177,14 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 
   /* 6b. B-normalize eigenvectors (second pass) + extract signatures
    *     Double normalization improves B-orthogonality (ref ilobpcg.c:608-622)
-   *     TODO: measure whether this reduces quality=5 fallback frequency
+   *     TODO: measure whether this reduces quality=5 fallback frequency */
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
 #ifdef CTYPE_IS_COMPLEX
   FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #else
   FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #endif
-  */
+  
 
   for (uint64_t i = 0; i < sizeSub; i++) {
     const CTYPE diag_val = wrk4[i + i * sizeSub];
@@ -196,6 +196,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
     }
     sig_all[i] = (CREAL(diag_val) >= 0) ? 1 : -1;
   }
+  
 
   /* Quality check: relative B-orthogonality after double normalization
    * Recompute V^H * GB * V; wrk3 = GB still valid */
@@ -210,7 +211,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   const RTYPE eerr  = FN(nrm2)(ss, wrk4);
   const RTYPE cerr  = FN(nrm2)(ss, VR);
   const RTYPE Bcerr = FN(nrm2)(ss, wrk1);
-  const int quality_ok = (Bcerr < (RTYPE)1e-30 || eerr <= (RTYPE)1e-10 * cerr * Bcerr);
+  const int quality_ok = (Bcerr < (RTYPE)1e-30 || eerr <= (RTYPE)1e-12 * cerr * Bcerr);
 
   /* 7. Sort by signature */
   FN(bubble_sort_sig)(eigvals_all, sig_all, indices, sizeSub);

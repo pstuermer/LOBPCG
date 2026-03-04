@@ -86,6 +86,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   /* Estimate operator norms */
   const RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
   const RTYPE BNorm = FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2);
+  printf("ANorm: %.5e\t BNorm: %.5e\n", ANorm, BNorm);
 
   /* Initialize eigenvectors if needed */
   // TODO: here a custom initialization would be good

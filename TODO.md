@@ -307,6 +307,56 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 
 ---
 
+## Code Review Fixes & Memory Optimization
+
+**Plan:** `docs/plans/2026-03-03-code-review-fixes.md`
+
+### S-Tier Correctness Bugs (PR #4, 2026-03-03)
+- [x] S1: `ortho_drop` returns 0 instead of `ndropped` — fixed to return `n_u` (`0deb110`)
+- [x] S3: Missing `TYPE_IS_FLOAT` guards in `lobpcg_impl.inc`, `ilobpcg_impl.inc`, `residual_impl.inc` + 6 core instantiation files (`0deb110`)
+- [x] S4: `conj()` → `conjf()` dispatch for complex float (`0deb110`)
+- [ ] S2: Stale `wrk4` in `indefinite_rr_modified` — 2nd B-normalization still commented out (deferred, needs measurement) (`indefinite_rr_modified_impl.inc:178-187`)
+
+### A-Tier Latent Bugs (PR #4, 2026-03-03)
+- [x] A1: Machine-epsilon-scaled tolerances — changed to `EPS_TOL` macro per instantiation file (`3a43951`, `147d367`)
+- [x] A3: Remove `restrict` from `Cx_ortho` parameter (`0deb110`)
+- [ ] A3b: `wrk1` still has `restrict` in `indefinite_rr_modified_impl.inc:78` — aliases `Cx_ortho` at call site, formally UB
+
+### Memory Optimization (PR #4, 2026-03-03)
+- [x] Reduce wrk3 from `3ns` to `max(ns, 9s^2)`, wrk1/wrk4 from `3ns` to `max(2ns, 9s^2)` (`981b26a`)
+- [x] Pre-allocate per-iteration RR buffers in `lobpcg_t` (`50aebbb`, `973c66b`)
+- [ ] (Optional) Block-by-block Gram computation to reduce wrk2 from `3ns` to `ns`
+
+### Test Gaps (PR #4, 2026-03-03)
+- [x] Add `s_` (float) regression tests for lobpcg and ilobpcg (`259ef85`)
+- [x] Add quality=5 stress test with ill-conditioned B for ilobpcg (`1fdbfaf`)
+
+### Remaining from 2026-03-04 Code Review
+- [ ] Missing `TYPE_IS_FLOAT` in `svqb_mat_s.c`, `svqb_mat_c.c` (missed in S3 fix)
+- [ ] Missing `TYPE_IS_FLOAT` in `estimate_norm_s.c`, `estimate_norm_c.c` (missed in S3 fix)
+- [ ] Bare `fabs()`/`sqrt()` in `svqb_impl.inc:95,101` and `svqb_mat_impl.inc:95,101` — need `RABS`/`RSQRT` macros
+- [ ] Bare `sqrt()` in `residual_impl.inc:115` — needs `sqrtf` for float
+- [ ] `CREAL` should use `crealf` for float complex in `indefinite_rr_impl.inc`, `indefinite_rr_modified_impl.inc`
+- [ ] `linop_ctx_t` aliasing UB in tests: `test_lobpcg.c`, `test_rayleigh_ritz.c`, `test_ilobpcg.c`, `test_indefinite_rr.c`, `test_residual.c`, `test_estimate_norm.c` cast `dense_ctx_*` directly to `(linop_ctx_t*)`
+- [ ] Remove `-Wno-incompatible-pointer-types` from Makefile and fix underlying warnings
+- [ ] Make matvec `x` parameter `const` in `linop.h` typedef
+- [ ] Add parameter validation to ilobpcg (`nev > sizeSub`, `3*sizeSub > size`)
+- [ ] `printf` format `%ld` with `uint64_t` — use `%lu` + `(unsigned long)` cast in `lobpcg_impl.inc`, `ilobpcg_impl.inc`
+
+### C-Tier (deferred)
+- [ ] Tolerances as parameters instead of magic numbers
+- [ ] Inconsistent return types (`uint8_t` vs `int` for LAPACK wrappers)
+- [ ] Missing `#include <stdio.h>` in `lobpcg_impl.inc`, `ilobpcg_impl.inc` (works via transitive include)
+- [ ] SVQB hot-path dynamic alloc of `eigvals`/`D` — 18 xcalloc/safe_free per ortho step
+- [ ] `gram_self`/`gram_cross` accept `ldg` parameter but ignore it
+- [ ] Unconditional `printf` in solver loop — should be verbosity-gated
+- [ ] Duplicate `ortho_err_upper` in 3 `.inc` files (DRY)
+- [ ] Inconsistent include paths (gram files use `../../include/...`, ortho uses `"lobpcg/..."`)
+- [ ] Inconsistent `LINOP` macro (`struct LinearOperator_d_t` vs `LinearOperator_d_t`)
+- [ ] Mixed tabs/spaces indentation in several `.inc` files
+
+---
+
 ## Phase 6: Documentation & Examples
 
 - [x] Create CLAUDE.md
