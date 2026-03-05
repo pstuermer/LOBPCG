@@ -73,3 +73,6 @@ dkms.conf
 
 # build files
 build/
+
+# worktrees
+.worktrees/
