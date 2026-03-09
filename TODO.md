@@ -52,9 +52,11 @@
 - [x] Implement column transformation
 - [x] Create instantiation files `svqb_{s,d,c,z}.c`
 - [x] Create `tests/test_svqb.c`
-- [ ] (Deferred) Implement drop='y' mode (randomize weak columns)
+- [x] Implement drop='y' mode: skip eigenvectors with |λ| < tau*max|λ|, return colsretain
+- [x] Propagate sizeW (retained column count) through ortho → RR → lobpcg/ilobpcg main loops
 
 **Verify:** `test_svqb.c` - `||U^H * B * U - I||_F < 1e-14` (double) ✓ PASSED
+**Verify:** `test_svqb_drop.c` - 8 drop-specific tests ✓ PASSED
 **Reference:** `lobpcg.c:598-751` (zsvqb)
 
 ---
@@ -67,9 +69,9 @@
 - [x] Added named iteration bounds (`max_outer`, `max_inner`)
 - [x] Added division-by-zero guards on `BV_norm`, `U_norm` (matching ortho_indefinite pattern)
 - [x] Added workspace layout documentation
-- [ ] (Deferred) Implement drop='y' mode (randomize weak columns)
+- [x] Propagate svqb drop='y' return: ortho_drop captures and returns sizeW
 
-**Verify:** `test_ortho_drop.c` - 4 tests (d/z × B/no-B) ✓ PASSED
+**Verify:** `test_ortho_drop.c` - 8 tests ✓ PASSED
 **Reference:** `lobpcg.c:752-870` (zortho_randomize)
 
 ### ortho_randomize - REMOVED (superseded by ortho_drop)
@@ -131,7 +133,7 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Updated workspace layout documentation
 - [x] Normalized instantiation files: `LINOP` without `struct`, clean include paths
 - [ ] (Deferred) Have svqb return output B-Gram to avoid redundant `gram_self` after svqb
-- [ ] (Deferred) Column dropping / randomization for linearly dependent columns
+- [x] Column dropping via svqb drop='y': ortho_indefinite captures and returns retained count
 - [ ] (Investigate) Inner-loop error denominator: `||B*U||*||U||` vs `||U||^2` — see NOTE comments in both impl files
 
 **Verify:** `test_ortho_indefinite.c` ✓ PASSED (4 diagonal-B + 4 permutation-B + 2 B=NULL tests)
@@ -165,6 +167,9 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Add useOrtho==1 branch: direct eigensolve on S^H*A*S (no Gram/Cholesky/D_inv_R)
 - [x] Fix Cp QR dimensions: store Z2 (not Z2^T), QR on tall matrix, fix K in GEMM (both branches)
 
+- [x] Changed ndrop→nretain parameter, sizeSub=(mult-1)*nx+nretain formula
+- [x] Propagated sizeW from lobpcg main loop (iter>0 only; iter==0 keeps full sizeSub to satisfy QR constraint)
+
 **Verify:** Covered by standard RR tests (ortho + chol branches, mult=2 and mult=3) ✓ PASSED
 
 ### Indefinite Rayleigh-Ritz
@@ -173,6 +178,8 @@ Identical algorithm; deleted impl, instantiation files, test, and lobpcg.h decla
 - [x] Track signature (+1/-1) of each eigenpair
 - [x] Sort: positive ascending, negative descending
 - [x] Implement `bubble_sort_sig()` - sort by signature
+
+- [x] Changed ndrop→nretain in modified RR, uncommented step 6b double B-normalization, tightened quality tolerance to 1e-12
 
 **Verify:** `test_indefinite_rr.c` - 17 tests: diag/dense A × diag/perm B, basic/modified, d/s/z/c types ✓ PASSED
 - [x] Fixed `bubble_sort_sig()`: was sorting all eigenvalues ascending; now positive ascending, negative descending. Extracted to shared `bubble_sort_sig_impl.inc`

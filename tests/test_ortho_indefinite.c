@@ -684,6 +684,122 @@ TEST(z_ortho_indefinite_no_B) {
  * Main
  * ==================================================================== */
 
+/* ====================================================================
+ * Dropping tests (indefinite B)
+ * ==================================================================== */
+
+TEST(d_ortho_indefinite_drop_duplicate) {
+  /* U has 5 cols, col4 = col0, indefinite B -> should drop to 4 */
+  const uint64_t m = 100, n_u = 5, n_v = 3, n_pos = 60;
+  const uint64_t max_n = n_u > n_v ? n_u : n_v;
+  const uint64_t wrk_size = m * max_n;
+
+  LinearOperator_d_t *B = create_indef_B_d(m, n_pos);
+
+  f64 *V    = xcalloc(m * n_v, sizeof(f64));
+  f64 *U    = xcalloc(m * n_u, sizeof(f64));
+  f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+  f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+  f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
+
+  for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+  for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
+  d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+  memcpy(&U[4*m], &U[0*m], m * sizeof(f64));
+
+  uint64_t n_ret = d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-12,
+                                       U, V, NULL, wrk1, wrk2, wrk3, B);
+  printf("n_ret=%lu (expected %lu) ", n_ret, n_u - 1);
+  ASSERT(n_ret == n_u - 1);
+
+  f64 norm = B_norm_error_d(m, n_ret, U, B, wrk1);
+  printf("norm=%.2e ", norm);
+  ASSERT(norm < TOL_F64 * n_u);
+
+  f64 cross = B_cross_error_d(m, n_ret, n_v, U, V, B, wrk1);
+  printf("cross=%.2e ", cross);
+  ASSERT(cross < TOL_F64 * n_u);
+
+  safe_free((void**)&V); safe_free((void**)&U);
+  safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+  linop_destroy_d(&B);
+}
+
+TEST(d_ortho_indefinite_drop_zero) {
+  /* col2 = 0, indefinite B -> should drop to 4 */
+  const uint64_t m = 100, n_u = 5, n_v = 3, n_pos = 60;
+  const uint64_t max_n = n_u > n_v ? n_u : n_v;
+  const uint64_t wrk_size = m * max_n;
+
+  LinearOperator_d_t *B = create_indef_B_d(m, n_pos);
+
+  f64 *V    = xcalloc(m * n_v, sizeof(f64));
+  f64 *U    = xcalloc(m * n_u, sizeof(f64));
+  f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+  f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+  f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
+
+  for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+  for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
+  d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+  memset(&U[2*m], 0, m * sizeof(f64));
+
+  uint64_t n_ret = d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-12,
+                                       U, V, NULL, wrk1, wrk2, wrk3, B);
+  printf("n_ret=%lu (expected %lu) ", n_ret, n_u - 1);
+  ASSERT(n_ret == n_u - 1);
+
+  f64 norm = B_norm_error_d(m, n_ret, U, B, wrk1);
+  printf("norm=%.2e ", norm);
+  ASSERT(norm < TOL_F64 * n_u);
+
+  f64 cross = B_cross_error_d(m, n_ret, n_v, U, V, B, wrk1);
+  printf("cross=%.2e ", cross);
+  ASSERT(cross < TOL_F64 * n_u);
+
+  safe_free((void**)&V); safe_free((void**)&U);
+  safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+  linop_destroy_d(&B);
+}
+
+TEST(d_ortho_indefinite_drop_independent_keeps_all) {
+  /* All independent, indefinite B -> no dropping */
+  const uint64_t m = 100, n_u = 5, n_v = 3, n_pos = 60;
+  const uint64_t max_n = n_u > n_v ? n_u : n_v;
+  const uint64_t wrk_size = m * max_n;
+
+  LinearOperator_d_t *B = create_indef_B_d(m, n_pos);
+
+  f64 *V    = xcalloc(m * n_v, sizeof(f64));
+  f64 *U    = xcalloc(m * n_u, sizeof(f64));
+  f64 *wrk1 = xcalloc(wrk_size, sizeof(f64));
+  f64 *wrk2 = xcalloc(wrk_size, sizeof(f64));
+  f64 *wrk3 = xcalloc(wrk_size, sizeof(f64));
+
+  for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand()/RAND_MAX - 0.5;
+  for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand()/RAND_MAX - 0.5;
+  d_svqb(m, n_v, 1e-14, 'n', V, wrk1, wrk2, wrk3, B);
+
+  uint64_t n_ret = d_ortho_indefinite(m, n_u, n_v, TOL_F64, 1e-12,
+                                       U, V, NULL, wrk1, wrk2, wrk3, B);
+  printf("n_ret=%lu (expected %lu) ", n_ret, n_u);
+  ASSERT(n_ret == n_u);
+
+  f64 norm = B_norm_error_d(m, n_ret, U, B, wrk1);
+  printf("norm=%.2e ", norm);
+  ASSERT(norm < TOL_F64 * n_u);
+
+  f64 cross = B_cross_error_d(m, n_ret, n_v, U, V, B, wrk1);
+  printf("cross=%.2e ", cross);
+  ASSERT(cross < TOL_F64 * n_u);
+
+  safe_free((void**)&V); safe_free((void**)&U);
+  safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+  linop_destroy_d(&B);
+}
+
 int main(void) {
     srand((unsigned)time(NULL));
 
@@ -700,6 +816,11 @@ int main(void) {
     RUN(z_ortho_indefinite_perm);
     RUN(z_ortho_indefinite_perm_larger);
     RUN(z_ortho_indefinite_no_B);
+
+    printf("\nIndefinite dropping tests:\n");
+    RUN(d_ortho_indefinite_drop_duplicate);
+    RUN(d_ortho_indefinite_drop_zero);
+    RUN(d_ortho_indefinite_drop_independent_keeps_all);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);

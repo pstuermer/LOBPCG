@@ -85,7 +85,7 @@ static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
  * @param wrk3      Workspace: max(n_v * n_u, n_v * n_v, n_u * n_u) — cross-gram result / svqb scratch
  * @param B         Indefinite B operator (NULL = identity)
  *
- * @return Number of columns dropped from U (always 0 for now)
+ * @return Number of columns retained in U
  *
  * Algorithm:
  *   1. Compute sig = V^H*B*V if not provided
@@ -119,6 +119,8 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
   const uint64_t max_outer = 3;
   const uint64_t max_inner = 3;
 
+  uint64_t nu = n_u;
+
   /* Allocate local signature matrix if not provided */
   CTYPE *sig_local = NULL;
   if (!sig) {
@@ -148,42 +150,42 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
   for (uint64_t outer = 0; outer < max_outer; outer++) {
 
     /* coef = V^H * B * U (n_v x n_u matrix in wrk3) */
-    FN(gram_cross)(V, n_v, U, n_u, m, B, wrk3, n_v, wrk2);
+    FN(gram_cross)(V, n_v, U, nu, m, B, wrk3, n_v, wrk2);
 
-    /* tmp = sig * coef (n_v x n_u matrix in wrk1, reusing space) */
-    /* Note: wrk1 has size m*max(n_u,n_v), and n_v*n_u <= m*max(n_u,n_v) typically */
+    /* tmp = sig * coef (n_v x nu matrix in wrk1, reusing space) */
+    /* Note: wrk1 has size m*max(nu,n_v), and n_v*nu <= m*max(nu,n_v) typically */
     CTYPE *tmp = wrk1;  /* Reuse wrk1 for this small matrix */
-    FN(gemm_nn)(n_v, n_u, n_v, (CTYPE)1, sig, wrk3, (CTYPE)0, tmp);
+    FN(gemm_nn)(n_v, nu, n_v, (CTYPE)1, sig, wrk3, (CTYPE)0, tmp);
 
     /* U = U - V * tmp (fused into single GEMM) */
-    FN(gemm_nn)(m, n_u, n_v, (CTYPE)(-1), V, tmp, (CTYPE)1, U);
+    FN(gemm_nn)(m, nu, n_v, (CTYPE)(-1), V, tmp, (CTYPE)1, U);
 
     /* Inner iterations: B-orthonormalize U via SVQB */
     for (uint64_t inner = 0; inner < max_inner; inner++) {
       /* Call SVQB to B-orthonormalize U */
       /* svqb signature: (m, n, tau, drop, U, wrk1, wrk2, wrk3, B) */
-      FN(svqb)(m, n_u, eps_drop, 'n', U, wrk1, wrk2, wrk3, B);
+      nu = FN(svqb)(m, nu, eps_drop, 'y', U, wrk1, wrk2, wrk3, B);
 
       /* Check orthonormality: ||U^H*B*U - I_sig||_F / ||U||^2
        * NOTE: denominator choice differs between ortho_drop (||B*U||*||U||)
        * and ortho_indefinite (||U||^2). For indefinite B, ||B*U|| can vanish
        * near null-space of B, making ||B*U||*||U|| unsuitable. Investigate
        * whether ortho_drop should also use ||U||^2 for consistency. */
-      FN(gram_self)(U, m, n_u, B, wrk1, n_u, wrk2);
-      RTYPE ortho_err = FN(ortho_err_upper)(n_u, wrk1);
-      RTYPE U_nrm = FN(nrm2)(m * n_u, U);
+      FN(gram_self)(U, m, nu, B, wrk1, nu, wrk2);
+      RTYPE ortho_err = FN(ortho_err_upper)(nu, wrk1);
+      RTYPE U_nrm = FN(nrm2)(m * nu, U);
       if (U_nrm < eps_ortho) U_nrm = (RTYPE)1;
 
       if (ortho_err / (U_nrm * U_nrm) < eps_ortho) break;
     }
 
     /* Check ||V^H*B*U||_F for convergence */
-    FN(gram_cross)(V, n_v, U, n_u, m, B, wrk3, n_v, wrk2);
+    FN(gram_cross)(V, n_v, U, nu, m, B, wrk3, n_v, wrk2);
 
-    RTYPE U_norm = FN(nrm2)(m * n_u, U);
+    RTYPE U_norm = FN(nrm2)(m * nu, U);
     if (U_norm < eps_ortho) U_norm = (RTYPE)1;
 
-    RTYPE VU_err = FN(nrm2)(n_v * n_u, wrk3) / (BV_norm * U_norm);
+    RTYPE VU_err = FN(nrm2)(n_v * nu, wrk3) / (BV_norm * U_norm);
     if (VU_err < eps_ortho) break;
   }
 
@@ -191,7 +193,7 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
     safe_free((void**)&sig_local);
   }
 
-  return 0;  /* No column dropping implemented yet */
+  return nu;
 }
 
 #undef CONCAT2

@@ -136,14 +136,17 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
   while (alg->iter < alg->maxIter) {
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
+    uint64_t sizeW = sizeSub;
 
     /* Apply preconditioner T to W (if provided) */
     if (NULL != alg->T) {
-      FN(apply_block_op)(alg->T, W, alg->wrk1, size, sizeSub);
-      memcpy(W, alg->wrk1, size * sizeSub * sizeof(CTYPE));
+      FN(apply_block_op)(alg->T, W, alg->wrk1, size, sizeW);
+      memcpy(W, alg->wrk1, size * sizeW * sizeof(CTYPE));
     }
 
     /* Orthogonalize W against [X] or [X, P] using indefinite ortho
+     * At iter==0: don't capture return (sizeW stays sizeSub) to avoid
+     * n_remainder < nx in RR's QR factorization.
      * TODO: cache signature matrix from RR for ortho_indefinite reuse */
     if (0 == alg->iter) {
       FN(ortho_indefinite)(size, sizeSub, sizeSub,
@@ -151,21 +154,21 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 			   W, X, NULL,
 			   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     } else {
-      FN(ortho_indefinite)(size, sizeSub, 2 * sizeSub,
-			   eps_ortho, eps_drop,
-			   W, alg->S, NULL,
-			   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+      sizeW = FN(ortho_indefinite)(size, sizeSub, 2 * sizeSub,
+				   eps_ortho, eps_drop,
+				   W, alg->S, NULL,
+				   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     }
 
     /* At iter==0, copy W into P slot so S[0:2*sizeSub] = [X,W] for mult=2 RR */
     if (0 == alg->iter)
-      memcpy(P, W, size*sizeSub * sizeof(CTYPE));
+      memcpy(P, W, size * sizeSub * sizeof(CTYPE));
 
     /* Modified indefinite Rayleigh-Ritz
      * Cx_ortho reuses wrk1 storage (pure output, written only after wrk1 is dead) */
     CTYPE *Cx_ortho = alg->wrk1;
     int quality_flag = 1;
-    FN(indefinite_rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0,
+    FN(indefinite_rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, sizeW,
 					  alg->S, alg->AX,
 					  alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
 					  alg->Cx, alg->Cp, Cx_ortho,
@@ -187,7 +190,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
      *   then Cx_ortho (= wrk1) for the iteration basis (needs stability). */
 
     if (1 == quality_flag) {
-      const uint64_t ms = mult*sizeSub;
+      const uint64_t ms = (mult - 1) * sizeSub + sizeW;
       memcpy(alg->wrk2, alg->Cx, ms*sizeSub * sizeof(CTYPE));
       memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
       FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
@@ -204,7 +207,7 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 			    alg->wrk1, alg->wrk2, alg->wrk3,
 			    ANorm, BNorm, alg->B);
     } else if (5 == quality_flag) {
-      const uint64_t ms = mult*sizeSub;
+      const uint64_t ms = (mult - 1) * sizeSub + sizeW;
 
       /* 1. Save X_accurate = S * Cx in first block of wrk4
        *    (for residual — needs accurate eigenvalue correspondence) */

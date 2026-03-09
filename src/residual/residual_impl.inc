@@ -98,7 +98,7 @@ void FN(get_residual_norm)(const uint64_t size, const uint64_t nev,
                            const RTYPE ANorm, const RTYPE BNorm, LINOP *B) {
 
   (void)wrk1;
-  (void)wrk2;  /* Unused for now */
+  (void)wrk2;
   (void)wrk3;
   (void)B;
 
