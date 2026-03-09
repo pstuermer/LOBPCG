@@ -79,6 +79,8 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
     return n_u;
   }
 
+  uint64_t nu = n_u;
+
   /* Compute ||B*V||_F for relative tolerance */
   RTYPE BV_norm = 0;
   if (NULL == B) {
@@ -95,21 +97,21 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
 
   /* Outer loop: orthogonalization iterations */
   for (uint64_t outer = 0; outer < max_outer; outer++) {
-    /* Compute coef = V^H * B * U  (n_v x n_u) stored in wrk2 */
-    FN(gram_cross)(V, n_v, U, n_u, m, B, wrk2, n_v, wrk1);
+    /* Compute coef = V^H * B * U  (n_v x nu) stored in wrk2 */
+    FN(gram_cross)(V, n_v, U, nu, m, B, wrk2, n_v, wrk1);
 
     /* U = U - V * coef */
-    FN(gemm_nn)(m, n_u, n_v, (CTYPE)(-1), V, wrk2, (CTYPE)1, U);
+    FN(gemm_nn)(m, nu, n_v, (CTYPE)(-1), V, wrk2, (CTYPE)1, U);
 
     /* Inner loop: svqb iterations */
     for (uint64_t inner = 0; inner < max_inner; inner++) {
       /* svqb to B-orthonormalize U */
-      uint64_t n_ret = FN(svqb)(m, n_u, eps_drop, 'n', U, wrk1, wrk2, wrk3, B);
+      uint64_t n_ret = FN(svqb)(m, nu, eps_drop, 'y', U, wrk1, wrk2, wrk3, B);
 
-      if (n_ret != n_u) {
+      if (n_ret != nu) {
 	fprintf(stderr, "ortho_drop: svqb dropped columns (%lu -> %lu)\n",
-		(unsigned long)n_u, (unsigned long)n_ret);
-	return n_ret;
+		(unsigned long)nu, (unsigned long)n_ret);
+	nu = n_ret;
       }
 
       /* Check ||U^H * B * U - I||_F < eps_ortho */
@@ -117,34 +119,34 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
        * and ortho_indefinite (||U||^2). For indefinite B, ||B*U|| can vanish
        * near null-space of B, making ||B*U||*||U|| unsuitable. Investigate
        * whether ortho_drop should also use ||U||^2 for consistency. */
-      RTYPE U_norm = FN(nrm2)(m * n_u, U);
+      RTYPE U_norm = FN(nrm2)(m * nu, U);
       if (U_norm < eps_ortho) U_norm = (RTYPE)1;
-      FN(gram_self)(U, m, n_u, B, wrk2, n_u, wrk1);
+      FN(gram_self)(U, m, nu, B, wrk2, nu, wrk1);
       RTYPE BU_norm;
       if (NULL == B) {
 	BU_norm = U_norm;
       } else {
-	BU_norm = FN(nrm2)(m * n_u, wrk1);
+	BU_norm = FN(nrm2)(m * nu, wrk1);
       }
 
-      RTYPE R_norm = FN(ortho_err_upper)(n_u, wrk2);
+      RTYPE R_norm = FN(ortho_err_upper)(nu, wrk2);
       RTYPE rerr = R_norm / (BU_norm * U_norm);
 
       if (rerr < eps_ortho) break;
     }
 
     /* Check ||V^H * B * U||_F < eps_ortho */
-    FN(gram_cross)(V, n_v, U, n_u, m, B, wrk2, n_v, wrk1);
+    FN(gram_cross)(V, n_v, U, nu, m, B, wrk2, n_v, wrk1);
 
-    RTYPE VU_norm = FN(nrm2)(n_v * n_u, wrk2);
-    RTYPE U_norm = FN(nrm2)(m * n_u, U);
+    RTYPE VU_norm = FN(nrm2)(n_v * nu, wrk2);
+    RTYPE U_norm = FN(nrm2)(m * nu, U);
     if (U_norm < eps_ortho) U_norm = (RTYPE)1;
     RTYPE rerr = VU_norm / (BV_norm * U_norm);
 
     if (rerr < eps_ortho) break;
   }
 
-  return n_u;
+  return nu;
 }
 
 #undef CONCAT2

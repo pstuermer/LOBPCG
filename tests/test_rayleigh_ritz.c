@@ -388,7 +388,7 @@ TEST(d_rr_modified_ortho) {
     memcpy(S, S6x4_d, n * sizeSub * sizeof(f64));
 
     uint8_t useOrtho = 1;
-    d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+    d_rayleigh_ritz_modified(n, nx, mult, 0, nx, &useOrtho,
                              S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
                              rr_eigvals, rr_tau, rr_D, &A, NULL);
 
@@ -445,7 +445,7 @@ TEST(z_rr_modified_ortho) {
         S[i] = S6x4_d[i] + 0.3 * ((f64)(i % 7) - 3.0) * I;
 
     uint8_t useOrtho = 1;
-    z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+    z_rayleigh_ritz_modified(n, nx, mult, 0, nx, &useOrtho,
                              S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
                              rr_eigvals, rr_tau, rr_D, &A, NULL);
 
@@ -500,7 +500,7 @@ TEST(d_rr_modified_chol) {
     memcpy(S, S6x4_d, n * sizeSub * sizeof(f64));
 
     uint8_t useOrtho = 0;
-    d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+    d_rayleigh_ritz_modified(n, nx, mult, 0, nx, &useOrtho,
                              S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
                              rr_eigvals, rr_tau, rr_D, &A, NULL);
 
@@ -564,7 +564,7 @@ TEST(z_rr_modified_chol) {
         S[i] = S6x4_d[i] + 0.3 * ((f64)(i % 7) - 3.0) * I;
 
     uint8_t useOrtho = 0;
-    z_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+    z_rayleigh_ritz_modified(n, nx, mult, 0, nx, &useOrtho,
                              S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
                              rr_eigvals, rr_tau, rr_D, &A, NULL);
 
@@ -627,7 +627,7 @@ TEST(d_rr_modified_mult3) {
     f64 *rr_D = xcalloc(sizeSub, sizeof(f64));
 
     uint8_t useOrtho = 1;
-    d_rayleigh_ritz_modified(n, nx, mult, 0, 0, &useOrtho,
+    d_rayleigh_ritz_modified(n, nx, mult, 0, nx, &useOrtho,
                              S, NULL, wrk1, wrk2, wrk3, Cx, Cp, eigVal,
                              rr_eigvals, rr_tau, rr_D, &A, NULL);
 

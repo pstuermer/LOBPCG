@@ -50,9 +50,9 @@
  * Inputs:
  *   size:      problem dimension
  *   nx:        block size (nev)
- *   mult:      block multiplier (2 or 3), sizeSub = mult*nx
+ *   mult:      block multiplier (2 or 3)
  *   nconv:     converged count (unused, for soft-locking)
- *   ndrop:     dropped columns (unused)
+ *   nretain:   number of retained W columns after ortho_drop
  *   S:         search space (size x sizeSub)
  *   A, B:      operators (B indefinite, must not be NULL)
  *
@@ -73,7 +73,7 @@
  */
 void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
                                            const uint64_t mult, const uint64_t nconv,
-                                           const uint64_t ndrop, CTYPE *restrict S,
+                                           const uint64_t nretain, CTYPE *restrict S,
                                            const CTYPE *restrict AX,
                                            CTYPE *restrict wrk1, CTYPE *restrict wrk2,
                                            CTYPE *restrict wrk3, CTYPE *restrict wrk4,
@@ -89,11 +89,10 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
                                            CTYPE *restrict rr_ggev,
                                            LINOP *A, LINOP *B) {
 
-  (void)nconv;
-  (void)ndrop;
+  (void)nconv;  /* TODO: implement soft-locking */
 
-  const uint64_t sizeSub = mult * nx;
-  const uint64_t n_remainder = (mult - 1) * nx;
+  const uint64_t sizeSub = (mult - 1) * nx + nretain;
+  const uint64_t n_remainder = sizeSub - nx;
   const uint64_t ss = sizeSub * sizeSub;
 
   /* Pre-allocated buffers from caller */
@@ -177,14 +176,13 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
 
   /* 6b. B-normalize eigenvectors (second pass) + extract signatures
    *     Double normalization improves B-orthogonality (ref ilobpcg.c:608-622)
-   *     TODO: measure whether this reduces quality=5 fallback frequency
+   *     TODO: measure whether this reduces quality=5 fallback frequency */
   FN(gemm_nn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, wrk3, VR, (CTYPE)0, wrk1);
 #ifdef CTYPE_IS_COMPLEX
   FN(gemm_hn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #else
   FN(gemm_tn)(sizeSub, sizeSub, sizeSub, (CTYPE)1, VR, wrk1, (CTYPE)0, wrk4);
 #endif
-  */
 
   for (uint64_t i = 0; i < sizeSub; i++) {
     const CTYPE diag_val = wrk4[i + i * sizeSub];
@@ -210,7 +208,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   const RTYPE eerr  = FN(nrm2)(ss, wrk4);
   const RTYPE cerr  = FN(nrm2)(ss, VR);
   const RTYPE Bcerr = FN(nrm2)(ss, wrk1);
-  const int quality_ok = (Bcerr < (RTYPE)1e-30 || eerr <= (RTYPE)1e-10 * cerr * Bcerr);
+  const int quality_ok = (Bcerr < (RTYPE)1e-30 || eerr <= (RTYPE)1e-12 * cerr * Bcerr);
 
   /* 7. Sort by signature */
   FN(bubble_sort_sig)(eigvals_all, sig_all, indices, sizeSub);

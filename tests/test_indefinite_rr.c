@@ -507,7 +507,7 @@ TEST(d_indef_rr_modified_diag) {
     f64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(f64));
 
-    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,
@@ -581,7 +581,7 @@ TEST(d_indef_rr_modified_diag_mult3) {
     f64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(f64));
 
-    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,
@@ -647,7 +647,7 @@ TEST(z_indef_rr_modified_diag) {
     c64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(c64));
     c64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(c64));
 
-    z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,
@@ -834,7 +834,7 @@ TEST(d_indef_rr_modified_perm) {
     f64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(f64));
 
-    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,
@@ -892,7 +892,7 @@ TEST(z_indef_rr_modified_perm) {
     c64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(c64));
     c64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(c64));
 
-    z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,
@@ -1098,7 +1098,7 @@ TEST(d_indef_rr_modified_dense) {
     f64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(f64));
     f64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(f64));
 
-    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    d_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,
@@ -1167,7 +1167,7 @@ TEST(z_indef_rr_modified_dense) {
     c64 *rr_VR = xcalloc(sizeSub * sizeSub, sizeof(c64));
     c64 *rr_ggev = xcalloc(3 * sizeSub, sizeof(c64));
 
-    z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, 0,
+    z_indefinite_rayleigh_ritz_modified(n, nev, mult, 0, nev,
                                          S, NULL, wrk1, wrk2, wrk3, wrk4,
                                          Cx, Cp, Cx_ortho, eigVal, sig, &quality_flag,
                                          rr_eigvals, rr_sig_buf, rr_indices, rr_VR, rr_ggev,

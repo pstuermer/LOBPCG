@@ -136,11 +136,12 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 
   while (alg->iter < alg->maxIter) {
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
+    uint64_t sizeW = sizeSub;
 
     /* Apply preconditioner T to W (if provided) */
     if (NULL != alg->T) {
-      FN(apply_block_op)(alg->T, W, alg->wrk1, size, sizeSub);
-      memcpy(W, alg->wrk1, size * sizeSub * sizeof(CTYPE));
+      FN(apply_block_op)(alg->T, W, alg->wrk1, size, sizeW);
+      memcpy(W, alg->wrk1, size * sizeW * sizeof(CTYPE));
     }
 
     /* If useOrtho: orthogonalize W against [X] (iter==0) or [X, P] (iter>=1) */
@@ -149,17 +150,17 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 	FN(ortho_drop)(size, sizeSub, sizeSub, eps_ortho, eps_drop,
 		       W, X, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
       } else {
-	FN(ortho_drop)(size, sizeSub, 2 * sizeSub, eps_ortho, eps_drop,
-		       W, alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+	sizeW = FN(ortho_drop)(size, sizeSub, 2 * sizeSub, eps_ortho, eps_drop,
+			       W, alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
       }
     }
 
     /* At iter==0, copy W into P slot so S[0:2*sizeSub] = [X, W] for mult=2 RR */
     if (0 == alg->iter)
-      memcpy(P, W, size*sizeSub * sizeof(CTYPE));
+      memcpy(P, W, size * sizeSub * sizeof(CTYPE));
 
     /* Modified Rayleigh-Ritz */
-    FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
+    FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, sizeW, &useOrtho,
 			       alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
 			       alg->Cx, alg->Cp, alg->eigVals,
 			       alg->rr_eigvals, alg->rr_tau, alg->rr_D,
@@ -173,15 +174,15 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 	FN(ortho_drop)(size, sizeSub, sizeSub, eps_ortho, eps_drop,
 		       W, X, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
       } else {
-	FN(ortho_drop)(size, sizeSub, 2 * sizeSub, eps_ortho, eps_drop,
-		       W, alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+	sizeW = FN(ortho_drop)(size, sizeSub, 2 * sizeSub, eps_ortho, eps_drop,
+			       W, alg->S, alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
       }
       /* Re-copy W into P slot at iter==0 */
       if (0 == alg->iter) {
 	memcpy(P, W, size * sizeSub * sizeof(CTYPE));
       }
       /* Retry RR with useOrtho=1 */
-      FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, 0, &useOrtho,
+      FN(rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, sizeW, &useOrtho,
 				 alg->S, alg->AX, alg->wrk1, alg->wrk2, alg->wrk3,
 				 alg->Cx, alg->Cp, alg->eigVals,
 				 alg->rr_eigvals, alg->rr_tau, alg->rr_D,
@@ -193,7 +194,7 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     W = alg->S + size * 2 * sizeSub;
 
     /* Project back: [X_new, P_new] = S * [Cx | Cp] via single GEMM */
-    uint64_t ms = mult * sizeSub;
+    uint64_t ms = (mult-1) * sizeSub + sizeW;
     memcpy(alg->wrk1, alg->Cx, ms * sizeSub * sizeof(CTYPE));
     memcpy(alg->wrk1 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
     FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S, alg->wrk1, (CTYPE)0, alg->wrk4);

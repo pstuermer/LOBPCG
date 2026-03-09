@@ -306,6 +306,110 @@ TEST(d_ortho_drop_retval) {
     safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
 }
 
+/* ====================================================================
+ * Dropping tests
+ * ==================================================================== */
+
+TEST(d_ortho_drop_duplicate_col) {
+  /* U has 5 cols, col4 = col0 -> should drop to 4, remain ortho to V */
+  const uint64_t m = 100, n_u = 5, n_v = 3;
+  const f64 eps = 1e-12;
+  const uint64_t max_n = n_u > n_v ? n_u : n_v;
+
+  f64 *U    = xcalloc(m * n_u, sizeof(f64));
+  f64 *V    = xcalloc(m * n_v, sizeof(f64));
+  f64 *wrk1 = xcalloc(m * (n_u + n_v), sizeof(f64));
+  f64 *wrk2 = xcalloc(m * max_n, sizeof(f64));
+  f64 *wrk3 = xcalloc(m * max_n, sizeof(f64));
+
+  for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand() / RAND_MAX;
+  for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand() / RAND_MAX;
+  d_svqb(m, n_v, eps, 'n', V, wrk1, wrk2, wrk3, NULL);
+
+  memcpy(&U[4*m], &U[0*m], m * sizeof(f64));
+
+  uint64_t n_ret = d_ortho_drop(m, n_u, n_v, eps, eps, U, V, wrk1, wrk2, wrk3, NULL);
+  printf("n_ret=%lu (expected %lu) ", n_ret, n_u - 1);
+  ASSERT(n_ret == n_u - 1);
+
+  f64 norm = norm_error_d(m, n_ret, U, wrk2);
+  printf("norm=%.2e ", norm);
+  ASSERT(norm < TOL);
+
+  f64 cross = cross_error_d(m, n_ret, n_v, U, V, wrk2);
+  printf("cross=%.2e ", cross);
+  ASSERT(cross < TOL);
+
+  safe_free((void**)&U); safe_free((void**)&V);
+  safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
+TEST(d_ortho_drop_zero_col) {
+  /* U has 5 cols, col2 = 0 -> should drop to 4, remain ortho to V */
+  const uint64_t m = 100, n_u = 5, n_v = 3;
+  const f64 eps = 1e-12;
+  const uint64_t max_n = n_u > n_v ? n_u : n_v;
+
+  f64 *U    = xcalloc(m * n_u, sizeof(f64));
+  f64 *V    = xcalloc(m * n_v, sizeof(f64));
+  f64 *wrk1 = xcalloc(m * (n_u + n_v), sizeof(f64));
+  f64 *wrk2 = xcalloc(m * max_n, sizeof(f64));
+  f64 *wrk3 = xcalloc(m * max_n, sizeof(f64));
+
+  for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand() / RAND_MAX;
+  for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand() / RAND_MAX;
+  d_svqb(m, n_v, eps, 'n', V, wrk1, wrk2, wrk3, NULL);
+
+  memset(&U[2*m], 0, m * sizeof(f64));
+
+  uint64_t n_ret = d_ortho_drop(m, n_u, n_v, eps, eps, U, V, wrk1, wrk2, wrk3, NULL);
+  printf("n_ret=%lu (expected %lu) ", n_ret, n_u - 1);
+  ASSERT(n_ret == n_u - 1);
+
+  f64 norm = norm_error_d(m, n_ret, U, wrk2);
+  printf("norm=%.2e ", norm);
+  ASSERT(norm < TOL);
+
+  f64 cross = cross_error_d(m, n_ret, n_v, U, V, wrk2);
+  printf("cross=%.2e ", cross);
+  ASSERT(cross < TOL);
+
+  safe_free((void**)&U); safe_free((void**)&V);
+  safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
+TEST(d_ortho_drop_independent_keeps_all) {
+  /* All independent -> no dropping, full ortho */
+  const uint64_t m = 100, n_u = 5, n_v = 3;
+  const f64 eps = 1e-12;
+  const uint64_t max_n = n_u > n_v ? n_u : n_v;
+
+  f64 *U    = xcalloc(m * n_u, sizeof(f64));
+  f64 *V    = xcalloc(m * n_v, sizeof(f64));
+  f64 *wrk1 = xcalloc(m * (n_u + n_v), sizeof(f64));
+  f64 *wrk2 = xcalloc(m * max_n, sizeof(f64));
+  f64 *wrk3 = xcalloc(m * max_n, sizeof(f64));
+
+  for (uint64_t i = 0; i < m * n_u; i++) U[i] = (f64)rand() / RAND_MAX;
+  for (uint64_t i = 0; i < m * n_v; i++) V[i] = (f64)rand() / RAND_MAX;
+  d_svqb(m, n_v, eps, 'n', V, wrk1, wrk2, wrk3, NULL);
+
+  uint64_t n_ret = d_ortho_drop(m, n_u, n_v, eps, eps, U, V, wrk1, wrk2, wrk3, NULL);
+  printf("n_ret=%lu (expected %lu) ", n_ret, n_u);
+  ASSERT(n_ret == n_u);
+
+  f64 norm = norm_error_d(m, n_ret, U, wrk2);
+  printf("norm=%.2e ", norm);
+  ASSERT(norm < TOL);
+
+  f64 cross = cross_error_d(m, n_ret, n_v, U, V, wrk2);
+  printf("cross=%.2e ", cross);
+  ASSERT(cross < TOL);
+
+  safe_free((void**)&U); safe_free((void**)&V);
+  safe_free((void**)&wrk1); safe_free((void**)&wrk2); safe_free((void**)&wrk3);
+}
+
 int main(void) {
     srand((unsigned)time(NULL));
 
@@ -315,6 +419,11 @@ int main(void) {
     RUN(z_ortho_drop_no_B);
     RUN(z_ortho_drop_with_B);
     RUN(d_ortho_drop_retval);
+
+    printf("\northo_drop dropping tests:\n");
+    RUN(d_ortho_drop_duplicate_col);
+    RUN(d_ortho_drop_zero_col);
+    RUN(d_ortho_drop_independent_keeps_all);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
