@@ -62,7 +62,9 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
                   CTYPE *restrict wrk1, CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                   LINOP *B) {
   if (0 == cols) return 0;
-  (void)drop;  /* drop='y' not implemented */
+  //  (void)drop;  /* drop='y' not implemented */
+
+  uint64_t colsretain = 0;
 
   RTYPE *eigvals = xcalloc(cols, sizeof(RTYPE));
   RTYPE *D = xcalloc(cols, sizeof(RTYPE));
@@ -96,19 +98,28 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   const RTYPE thresh = tau * maxeig;
 
   /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
-   *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) */
-  for (uint64_t j = 0; j < cols; j++) {
+   *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) 
+   *    if dropping is activated it will skip those eigenpairs */
+  /*  for (uint64_t j = 0; j < colsdrop; j++) {
     const RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
     for (uint64_t i = 0; i < cols; i++)
       wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
+  }*/
+  for (uint64_t j = 0; j < cols; j++) {
+    if (('y' == drop) && (RTYPE)fabs(eigvals[j]) < thresh)
+      continue;
+    const RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]),thresh));
+    for (uint64_t i = 0; i < cols; i++)
+      wrk2[i + colsretain*cols] = D[i] * wrk1[i + j*cols] * df;
+    colsretain++;
   }
 
   /* U_new = U * T */
-  FN(gemm_nn)(rows, cols, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
-  memcpy(U, wrk3, rows*cols*sizeof(CTYPE));
+  FN(gemm_nn)(rows, colsretain, cols, (CTYPE)1, U, wrk2, (CTYPE)0, wrk3);
+  memcpy(U, wrk3, rows*colsretain*sizeof(CTYPE));
 
   safe_free((void**)&eigvals); safe_free((void**)&D);
-  return cols;
+  return colsretain;
 }
 
 #undef CONCAT2
