@@ -164,14 +164,14 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
     for (uint64_t inner = 0; inner < max_inner; inner++) {
       /* Call SVQB to B-orthonormalize U */
       /* svqb signature: (m, n, tau, drop, U, wrk1, wrk2, wrk3, B) */
-      nu = FN(svqb)(m, n_u, eps_drop, 'y', U, wrk1, wrk2, wrk3, B);
+      nu = FN(svqb)(m, nu, eps_drop, 'y', U, wrk1, wrk2, wrk3, B);
 
       /* Check orthonormality: ||U^H*B*U - I_sig||_F / ||U||^2
        * NOTE: denominator choice differs between ortho_drop (||B*U||*||U||)
        * and ortho_indefinite (||U||^2). For indefinite B, ||B*U|| can vanish
        * near null-space of B, making ||B*U||*||U|| unsuitable. Investigate
        * whether ortho_drop should also use ||U||^2 for consistency. */
-      FN(gram_self)(U, m, n_u, B, wrk1, nu, wrk2);
+      FN(gram_self)(U, m, nu, B, wrk1, nu, wrk2);
       RTYPE ortho_err = FN(ortho_err_upper)(nu, wrk1);
       RTYPE U_nrm = FN(nrm2)(m * nu, U);
       if (U_nrm < eps_ortho) U_nrm = (RTYPE)1;
