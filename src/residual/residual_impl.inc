@@ -97,26 +97,15 @@ void FN(get_residual_norm)(const uint64_t size, const uint64_t nev,
 			   CTYPE *restrict wrk2, CTYPE *restrict wrk3,
                            const RTYPE ANorm, const RTYPE BNorm, LINOP *B) {
 
-  (void)wrk2;  /* Unused for now */
+  (void)wrk1;
+  (void)wrk2;
   (void)wrk3;
+  (void)B;
 
   for (uint64_t i = 0; i < nev; i++) {
-    RTYPE nom;
 
-    if (B) {
-      /* BW_i = B * W[:,i] in wrk1 */
-      B->matvec(B, &W[i*size], wrk1);
-      /* nom = sqrt(|W[:,i]^H * BW_i|) */
-#ifdef CTYPE_IS_COMPLEX
-      const CTYPE inner = FN(dotc)(size, &W[i*size], wrk1);
-#else
-      const CTYPE inner = FN(dot)(size, &W[i*size], wrk1);
-#endif
-      nom = sqrt(CABS(inner));
-    } else {
-      /* nom = ||W[:,i]||_2 */
-      nom = FN(nrm2)(size, &W[i*size]);
-    }
+    /* nom = ||W[:,i]||_2 */
+    const RTYPE nom = FN(nrm2)(size, &W[i*size]);
 
     /* denom = ANorm + |eigVal[i]| * BNorm */
     const RTYPE lambda_abs = RABS(eigVals[i]);

@@ -39,7 +39,7 @@
  *   size: problem dimension
  *   nx: block size (nev)
  *   nconv: number of converged eigenpairs (for soft-locking)
- *   ndrop: number of dropped columns (unused currently)
+ *   nretain: number of retained columns in W after ortho_drop
  *   useOrtho: pointer to orthogonalization flag (input/output)
  *            0 = normal path, 1 = use orthogonalization, 2 = condition check failed
  *   S: search space (size x mult*nx) where mult = 2 or 3
@@ -53,7 +53,7 @@
  */
 void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
                                 const uint64_t mult,
-                                const uint64_t nconv, const uint64_t ndrop,
+                                const uint64_t nconv, const uint64_t nretain,
                                 uint8_t *useOrtho,
                                 CTYPE *restrict S, const CTYPE *restrict AX,
                                 CTYPE *restrict wrk1, CTYPE *restrict wrk2,
@@ -65,13 +65,10 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
                                 RTYPE *restrict rr_D,
                                 LINOP *A, LINOP *B) {
   (void)nconv;  /* TODO: implement soft-locking */
-  (void)ndrop;
 
   const RTYPE tol_skip = 5.0e-3;  /* Condition number threshold */
-  // TODO: this is not correct, should be mult*nx - ndrop - nconv
-  // to get the correct matrix size
-  const uint64_t sizeSub = mult * nx;
-  const uint64_t n_remainder = (mult - 1) * nx;
+  const uint64_t sizeSub = (mult-1) * nx + nretain;
+  const uint64_t n_remainder = sizeSub - nx;
 
   RTYPE *restrict eigvals_r = rr_eigvals;
   CTYPE *restrict tau = rr_tau;
