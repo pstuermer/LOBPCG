@@ -64,10 +64,8 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
                                 CTYPE *restrict rr_tau,
                                 RTYPE *restrict rr_D,
                                 LINOP *A, LINOP *B) {
-  (void)nconv;  /* TODO: implement soft-locking */
-
   const RTYPE tol_skip = 5.0e-3;  /* Condition number threshold */
-  const uint64_t sizeSub = (mult-1) * nx + nretain;
+  const uint64_t sizeSub = (mult - 1) * nx + nretain - (3 == mult ? nconv : 0);
   const uint64_t n_remainder = sizeSub - nx;
 
   RTYPE *restrict eigvals_r = rr_eigvals;
@@ -99,6 +97,13 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
       goto cleanup;
     }
     /* wrk1 now contains eigenvectors (column-major) */
+
+    /* Guard: QR needs n_remainder >= nx (tall matrix) */
+    if (n_remainder < nx) {
+      memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
+      for (uint64_t i = 0; i < nx; i++) eigVal[i] = eigvals_r[i];
+      goto cleanup;
+    }
 
     /* Extract Z2 (n_remainder x nx) from rows [nx:sizeSub] of first nx eigvecs */
     memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
@@ -241,6 +246,13 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
   /* Cx = D_inv_R * Cx */
   FN(gemm_nn)(sizeSub, nx, sizeSub, (CTYPE)1, wrk3, Cx, (CTYPE)0, wrk2);
   memcpy(Cx, wrk2, sizeSub * nx * sizeof(CTYPE));
+
+  /* Guard: QR needs n_remainder >= nx (tall matrix) */
+  if (n_remainder < nx) {
+    memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
+    for (uint64_t i = 0; i < nx; i++) eigVal[i] = eigvals_r[i];
+    goto cleanup;
+  }
 
   /* 11. Extract Z2 (n_remainder x nx) — rows [nx:sizeSub] of first nx eigenvectors */
   memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));

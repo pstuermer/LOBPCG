@@ -89,9 +89,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
                                            CTYPE *restrict rr_ggev,
                                            LINOP *A, LINOP *B) {
 
-  (void)nconv;  /* TODO: implement soft-locking */
-
-  const uint64_t sizeSub = (mult - 1) * nx + nretain;
+  const uint64_t sizeSub = (mult - 1) * nx + nretain - (3 == mult ? nconv : 0);
   const uint64_t n_remainder = sizeSub - nx;
   const uint64_t ss = sizeSub * sizeSub;
 

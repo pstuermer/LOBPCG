@@ -423,6 +423,67 @@ TEST(s_ilobpcg_block_laplacian) {
     safe_free((void **)&ctx_b);
 }
 
+/* ================================================================
+ * Test 5: Block-Laplacian + block-perm B soft-locking (double)
+ *   m=100, n=200, nev=5, sizeSub=10 — exercises P/W compaction
+ * ================================================================ */
+TEST(d_ilobpcg_softlock) {
+    const uint64_t m = 100;
+    const uint64_t n = 2 * m;
+    const uint64_t nev = 5, sizeSub = 10;
+    const uint64_t maxIter = 500;
+    const f64 tol = 1e-4;
+
+    f64 L = 1.0;
+    f64 h = L / (m + 1);
+
+    block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
+    ctx_a->m = m;
+    ctx_a->h2_inv = 1.0 / (h * h);
+    LinearOperator_d_t A = { .rows = n, .cols = n,
+                             .matvec = (matvec_func_d_t)block_laplacian_matvec_d,
+                             .ctx = (linop_ctx_t *)ctx_a };
+
+    block_perm_ctx_t *ctx_b = xcalloc(1, sizeof(block_perm_ctx_t));
+    ctx_b->m = m;
+    LinearOperator_d_t B = { .rows = n, .cols = n,
+                             .matvec = (matvec_func_d_t)block_perm_matvec_d,
+                             .ctx = (linop_ctx_t *)ctx_b };
+
+    d_lobpcg_t *alg = d_ilobpcg_alloc(n, nev, sizeSub);
+    alg->A = &A;
+    alg->B = &B;
+    alg->T = NULL;
+    alg->maxIter = maxIter;
+    alg->tol = tol;
+
+    srand(77);
+    for (uint64_t k = 0; k < sizeSub; k++) {
+        for (uint64_t j = 0; j < m; j++) {
+            f64 val = (f64)rand() / RAND_MAX - 0.5;
+            alg->S[j + k * n]     = val;
+            alg->S[m + j + k * n] = val;
+        }
+    }
+
+    d_ilobpcg(alg);
+
+    printf("conv=%lu iter=%lu ", (unsigned long)alg->converged,
+           (unsigned long)alg->iter);
+    ASSERT(alg->converged == nev);
+
+    for (uint64_t k = 1; k <= nev; k++) {
+        f64 exact = (k * PI) * (k * PI);
+        ASSERT(alg->eigVals[k - 1] > 0);
+        f64 rel_err = fabs(alg->eigVals[k - 1] - exact) / exact;
+        ASSERT(rel_err < 0.01);
+    }
+
+    d_lobpcg_free(&alg);
+    safe_free((void **)&ctx_a);
+    safe_free((void **)&ctx_b);
+}
+
 /* ================================================================ */
 int main(void) {
     printf("Indefinite LOBPCG tests:\n");
@@ -430,6 +491,9 @@ int main(void) {
     RUN(z_ilobpcg_block_laplacian);
     RUN(d_ilobpcg_quality5);
     RUN(s_ilobpcg_block_laplacian);
+
+    printf("\nIndefinite LOBPCG soft-locking tests:\n");
+    RUN(d_ilobpcg_softlock);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);

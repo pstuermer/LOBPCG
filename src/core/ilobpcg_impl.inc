@@ -62,12 +62,15 @@
  *   alg->wrk2: size * 3*sizeSub
  *   alg->wrk3: 3*sizeSub * 3*sizeSub
  *   alg->wrk4: size * 3*sizeSub
- */
+ *
+ * Soft-locking: when nconv eigenvectors converge, P and W shrink from sizeSub
+ * to n_active = sizeSub - nconv. Project_back always writes all sizeSub columns
+ * of P, so compaction at top of each iteration is stateless. */
 void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   const uint64_t size = alg->size;
   const uint64_t nev = alg->nev;
   const uint64_t sizeSub = alg->sizeSub;
-    
+
   const RTYPE eps_ortho = (RTYPE)EPS_TOL;
   const RTYPE eps_drop = (RTYPE)EPS_TOL;
 
@@ -99,14 +102,14 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
   /* B-orthonormalize X via svqb */
   FN(svqb)(size, sizeSub, (RTYPE)EPS_TOL, 'n', X,
-	   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+           alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
 
   /* Initial indefinite Rayleigh-Ritz on X */
   FN(indefinite_rayleigh_ritz)(size, sizeSub, X, alg->Cx, alg->eigVals,
-			       alg->signature,
-			       alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
-			       alg->rr_indices, alg->rr_ggev,
-			       alg->A, alg->B);
+                               alg->signature,
+                               alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
+                               alg->rr_indices, alg->rr_ggev,
+                               alg->A, alg->B);
 
   /* Project back: X = X * Cx (use wrk4 as temp) */
   FN(gemm_nn)(size, sizeSub, sizeSub, (CTYPE)1, X, alg->Cx, (CTYPE)0, alg->wrk4);
@@ -118,15 +121,15 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
   /* Compute initial residual W = A*X - B*X*eigVal */
   FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals, alg->wrk1,
-		   alg->A, alg->B);
+                   alg->A, alg->B);
 
   /* Compute initial residual norms */
   FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
-			alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
+                        alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
 
   for (uint64_t i = 0; i < nev; i++) {
     printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-	     i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+           i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
   }
   printf("\n");
 
@@ -135,8 +138,25 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   alg->iter = 0;
 
   while (alg->iter < alg->maxIter) {
+    const uint64_t nconv = alg->converged;
+    const uint64_t n_active = sizeSub - nconv;
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
-    uint64_t sizeW = sizeSub;
+    uint64_t sizeW = (0 == alg->iter) ? sizeSub : n_active;
+
+    /* Compact P and W: remove converged columns from full-width layout.
+     * After project_back, S = [X(sizeSub) | P(sizeSub) | W(sizeSub)].
+     * Shift active cols of P to front, copy active cols of W right after. */
+    if (nconv > 0 && alg->iter > 0) {
+      CTYPE *P_base = alg->S + sizeSub * size;
+      memmove(P_base, P_base + nconv * size, n_active * size * sizeof(CTYPE));
+      memcpy(P_base + n_active * size,
+             alg->S + (2 * sizeSub + nconv) * size,
+             n_active * size * sizeof(CTYPE));
+    }
+
+    /* W pointer: iter 0 at fixed offset, iter >= 1 right after P_active */
+    W = (0 == alg->iter) ? alg->S + size * 2 * sizeSub
+                         : alg->S + size * (sizeSub + n_active);
 
     /* Apply preconditioner T to W (if provided) */
     if (NULL != alg->T) {
@@ -144,43 +164,43 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
       memcpy(W, alg->wrk1, size * sizeW * sizeof(CTYPE));
     }
 
-    /* Orthogonalize W against [X] or [X, P] using indefinite ortho
-     * At iter==0: don't capture return (sizeW stays sizeSub) to avoid
-     * n_remainder < nx in RR's QR factorization.
+    /* Orthogonalize W against [X] or [X, P_active] using indefinite ortho
      * TODO: cache signature matrix from RR for ortho_indefinite reuse */
     if (0 == alg->iter) {
       FN(ortho_indefinite)(size, sizeSub, sizeSub,
-			   eps_ortho, eps_drop,
-			   W, X, NULL,
-			   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+                           eps_ortho, eps_drop,
+                           W, X, NULL,
+                           alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     } else {
-      sizeW = FN(ortho_indefinite)(size, sizeSub, 2 * sizeSub,
-				   eps_ortho, eps_drop,
-				   W, alg->S, NULL,
-				   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
+      sizeW = FN(ortho_indefinite)(size, n_active, sizeSub + n_active,
+                                   eps_ortho, eps_drop,
+                                   W, alg->S, NULL,
+                                   alg->wrk1, alg->wrk2, alg->wrk3, alg->B);
     }
 
-    /* At iter==0, copy W into P slot so S[0:2*sizeSub] = [X,W] for mult=2 RR */
+    /* At iter==0, copy W into P slot so S = [X, W_copy] for mult=2 RR */
     if (0 == alg->iter)
-      memcpy(P, W, size * sizeSub * sizeof(CTYPE));
+      memcpy(P, W, size * sizeW * sizeof(CTYPE));
 
     /* Modified indefinite Rayleigh-Ritz
      * Cx_ortho reuses wrk1 storage (pure output, written only after wrk1 is dead) */
     CTYPE *Cx_ortho = alg->wrk1;
     int quality_flag = 1;
     FN(indefinite_rayleigh_ritz_modified)(size, sizeSub, mult, alg->converged, sizeW,
-					  alg->S, alg->AX,
-					  alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
-					  alg->Cx, alg->Cp, Cx_ortho,
-					  alg->eigVals, alg->signature,
-					  &quality_flag,
-					  alg->rr_eigvals, alg->rr_sig,
-					  alg->rr_indices, alg->rr_VR,
-					  alg->rr_ggev, alg->A, alg->B);
+                                          alg->S, alg->AX,
+                                          alg->wrk1, alg->wrk2, alg->wrk3, alg->wrk4,
+                                          alg->Cx, alg->Cp, Cx_ortho,
+                                          alg->eigVals, alg->signature,
+                                          &quality_flag,
+                                          alg->rr_eigvals, alg->rr_sig,
+                                          alg->rr_indices, alg->rr_VR,
+                                          alg->rr_ggev, alg->A, alg->B);
 
-    /* redefine P and W after first iteration */
-    P = alg->S + size*sizeSub;
-    W = alg->S + size*2*sizeSub;
+    /* Redefine P; W reset to fixed offset before residual */
+    P = alg->S + size * sizeSub;
+
+    /* Subspace size for this iteration's projection */
+    const uint64_t ms = sizeSub + (0 == alg->iter ? 0 : n_active) + sizeW;
 
     /* Two-path projection depending on eigenvector quality.
      *
@@ -190,50 +210,50 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
      *   then Cx_ortho (= wrk1) for the iteration basis (needs stability). */
 
     if (1 == quality_flag) {
-      const uint64_t ms = (mult - 1) * sizeSub + sizeW;
-      memcpy(alg->wrk2, alg->Cx, ms*sizeSub * sizeof(CTYPE));
-      memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
-      FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
-		  alg->wrk2, (CTYPE)0, alg->wrk4);
-      memcpy(alg->S, alg->wrk4, 2*size*sizeSub * sizeof(CTYPE));
+      memcpy(alg->wrk2, alg->Cx, ms * sizeSub * sizeof(CTYPE));
+      memcpy(alg->wrk2 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S,
+                  alg->wrk2, (CTYPE)0, alg->wrk4);
+      memcpy(alg->S, alg->wrk4, size * 2 * sizeSub * sizeof(CTYPE));
 
       if (alg->AX)
-	FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+        FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
 
+      W = alg->S + size * 2 * sizeSub;
       FN(get_residual)(size, sizeSub, X, alg->AX, W, alg->eigVals,
-		       alg->wrk1, alg->A, alg->B);
+                       alg->wrk1, alg->A, alg->B);
 
       FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
-			    alg->wrk1, alg->wrk2, alg->wrk3,
-			    ANorm, BNorm, alg->B);
+                            alg->wrk1, alg->wrk2, alg->wrk3,
+                            ANorm, BNorm, alg->B);
     } else if (5 == quality_flag) {
-      const uint64_t ms = (mult - 1) * sizeSub + sizeW;
 
       /* 1. Save X_accurate = S * Cx in first block of wrk4
        *    (for residual — needs accurate eigenvalue correspondence) */
       FN(gemm_nn)(size, sizeSub, ms, (CTYPE)1, alg->S,
-		  alg->Cx, (CTYPE)0, alg->wrk4);
+                  alg->Cx, (CTYPE)0, alg->wrk4);
 
-      /* 2. Project [X,P] = S * [Cx_ortho, Cp] into second block of wrk4
+      /* 2. Project [X, P] = S * [Cx_ortho, Cp] into second block of wrk4
        *    Must read from S BEFORE residual overwrites W ⊂ S */
-      memcpy(alg->wrk2, alg->wrk1, ms*sizeSub * sizeof(CTYPE));
-      memcpy(alg->wrk2 + ms*sizeSub, alg->Cp, ms*sizeSub * sizeof(CTYPE));
-      FN(gemm_nn)(size, 2*sizeSub, ms, (CTYPE)1, alg->S,
-		  alg->wrk2, (CTYPE)0, alg->wrk4 + size*sizeSub);
+      memcpy(alg->wrk2, alg->wrk1, ms * sizeSub * sizeof(CTYPE));
+      memcpy(alg->wrk2 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S,
+                  alg->wrk2, (CTYPE)0, alg->wrk4 + size * sizeSub);
 
       /* 3. Overwrite [X, P] in S — safe now, both reads from S are done */
-      memcpy(alg->S, alg->wrk4 + size*sizeSub, 2*size*sizeSub * sizeof(CTYPE));
+      memcpy(alg->S, alg->wrk4 + size * sizeSub, size * 2 * sizeSub * sizeof(CTYPE));
 
       if (alg->AX)
-	FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
+        FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
 
       /* 4. Compute residual from X_accurate (wrk4[0:size*sizeSub]) */
+      W = alg->S + size * 2 * sizeSub;
       FN(get_residual)(size, sizeSub, alg->wrk4, NULL, W, alg->eigVals,
-		       alg->wrk2, alg->A, alg->B);
+                       alg->wrk2, alg->A, alg->B);
 
       FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
-			    alg->wrk2, alg->wrk1, alg->wrk3,
-			    ANorm, BNorm, alg->B);
+                            alg->wrk2, alg->wrk1, alg->wrk3,
+                            ANorm, BNorm, alg->B);
     }
 
     /* Check convergence */
@@ -244,13 +264,12 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     }
 
     printf("Iteration %ld\t Converged Eigenpairs %ld/%ld\n",
-	   alg->iter, alg->converged, nev);
+           alg->iter, alg->converged, nev);
     for (uint64_t i = 0; i < nev; i++) {
       printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-	     i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+             i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
     }
     printf("\n");
-	     
 
     if (alg->converged == nev) {
       break;
