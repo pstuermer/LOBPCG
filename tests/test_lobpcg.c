@@ -415,6 +415,71 @@ TEST(s_lobpcg_laplacian) {
     safe_free((void**)&ctx);
 }
 
+/* ================================================================
+ * Diagonal matvec for soft-locking test
+ * ================================================================ */
+
+typedef struct { uint64_t n; f64 *diag; } diag_ctx_d_t;
+
+static void diag_matvec_d(const LinearOperator_d_t *op,
+                           const f64 *x, f64 *y) {
+    diag_ctx_d_t *ctx = (diag_ctx_d_t *)op->ctx;
+    for (uint64_t i = 0; i < ctx->n; i++)
+        y[i] = ctx->diag[i] * x[i];
+}
+
+/* ================================================================
+ * Test 7: d_lobpcg soft-locking on diagonal matrix
+ *   A = diag(1,2,...,30), n=30, nev=3, sizeSub=6
+ *   nev << sizeSub exercises P/W compaction as eigenvectors converge
+ *   Exact eigenvalues, fast convergence, deterministic
+ * ================================================================ */
+TEST(d_lobpcg_softlock) {
+    const uint64_t n = 30, nev = 3, sizeSub = 6;
+
+    diag_ctx_d_t *ctx = xcalloc(1, sizeof(diag_ctx_d_t));
+    ctx->n = n;
+    ctx->diag = xcalloc(n, sizeof(f64));
+    for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
+
+    LinearOperator_d_t A = { .rows = n, .cols = n,
+        .matvec = (void (*)(const LinearOperator_d_t *, f64 *, f64 *))diag_matvec_d,
+        .ctx = (linop_ctx_t *)ctx };
+
+    d_lobpcg_t *alg = d_lobpcg_alloc(n, nev, sizeSub);
+    alg->A = &A;
+    alg->B = NULL;
+    alg->T = NULL;
+    alg->maxIter = 200;
+    alg->tol = 1e-10;
+
+    /* Deterministic initialization */
+    srand(42);
+    for (uint64_t j = 0; j < sizeSub; j++)
+        for (uint64_t i = 0; i < n; i++)
+            alg->S[i + j * n] = (f64)rand() / RAND_MAX - 0.5;
+
+    d_lobpcg(alg);
+
+    printf("conv=%lu iter=%lu ", (unsigned long)alg->converged,
+           (unsigned long)alg->iter);
+    ASSERT(alg->converged == nev);
+
+    /* Exact eigenvalues: 1, 2, 3 */
+    for (uint64_t k = 0; k < nev; k++) {
+        ASSERT_NEAR(alg->eigVals[k], (f64)(k + 1), 1e-8);
+    }
+
+    f64 *X = alg->S;
+    f64 orth = ortho_self_d(n, nev, X);
+    printf("orth=%.2e ", orth);
+    ASSERT(orth < 1e-10);
+
+    d_lobpcg_free(&alg);
+    safe_free((void**)&ctx->diag);
+    safe_free((void**)&ctx);
+}
+
 /* ================================================================ */
 int main(void) {
     printf("LOBPCG dense tests:\n");
@@ -426,6 +491,9 @@ int main(void) {
     printf("\nLOBPCG Laplacian tests:\n");
     RUN(d_lobpcg_laplacian);
     RUN(s_lobpcg_laplacian);
+
+    printf("\nLOBPCG soft-locking tests:\n");
+    RUN(d_lobpcg_softlock);
 
     printf("\n========================================\n");
     printf("Results: %d passed, %d failed\n", tests_passed, tests_failed);
