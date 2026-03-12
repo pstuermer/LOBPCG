@@ -64,7 +64,8 @@
  *   alg->wrk4: size * 3*sizeSub
  *
  * Soft-locking: when nconv eigenvectors converge, P and W shrink from sizeSub
- * to n_active = sizeSub - nconv. Compaction uses P swap trick + gap-fill. */
+ * to n_active = sizeSub - nconv. Project_back always writes all sizeSub columns
+ * of P, so compaction at top of each iteration is stateless. */
 void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   const uint64_t size = alg->size;
   const uint64_t nev = alg->nev;
@@ -135,7 +136,6 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   /* Main iteration loop */
   alg->converged = 0;
   alg->iter = 0;
-  uint64_t nconv_locked = 0;
 
   while (alg->iter < alg->maxIter) {
     const uint64_t nconv = alg->converged;
@@ -143,32 +143,15 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
     uint64_t sizeW = (0 == alg->iter) ? sizeSub : n_active;
 
-    /* Compact P and W if new convergence since last project_back */
-    if (nconv > nconv_locked && alg->iter > 0) {
-      const uint64_t n_active_prev = sizeSub - nconv_locked;
-      const uint64_t delta = nconv - nconv_locked;
+    /* Compact P and W: remove converged columns from full-width layout.
+     * After project_back, S = [X(sizeSub) | P(sizeSub) | W(sizeSub)].
+     * Shift active cols of P to front, copy active cols of W right after. */
+    if (nconv > 0 && alg->iter > 0) {
       CTYPE *P_base = alg->S + sizeSub * size;
-
-      /* Compact P: swap last delta active cols to front */
-      if (delta <= n_active) {
-        for (uint64_t j = 0; j < delta; j++)
-          memcpy(P_base + j * size,
-                 P_base + (n_active_prev - delta + j) * size,
-                 size * sizeof(CTYPE));
-      } else {
-        memmove(P_base, P_base + delta * size,
-                n_active * size * sizeof(CTYPE));
-      }
-
-      /* Fill 2*nconv gap between P_active and W_active */
-      CTYPE *gap = P_base + n_active * size;
-      CTYPE *W_active = alg->S + (2 * sizeSub + nconv) * size;
-      if (2 * nconv <= n_active) {
-        memcpy(gap, W_active + (n_active - 2 * nconv) * size,
-               2 * nconv * size * sizeof(CTYPE));
-      } else {
-        memmove(gap, W_active, n_active * size * sizeof(CTYPE));
-      }
+      memmove(P_base, P_base + nconv * size, n_active * size * sizeof(CTYPE));
+      memcpy(P_base + n_active * size,
+             alg->S + (2 * sizeSub + nconv) * size,
+             n_active * size * sizeof(CTYPE));
     }
 
     /* W pointer: iter 0 at fixed offset, iter >= 1 right after P_active */
@@ -218,7 +201,6 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
     /* Subspace size for this iteration's projection */
     const uint64_t ms = sizeSub + (0 == alg->iter ? 0 : n_active) + sizeW;
-    const uint64_t out_cols = sizeSub + n_active;
 
     /* Two-path projection depending on eigenvector quality.
      *
@@ -229,13 +211,10 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 
     if (1 == quality_flag) {
       memcpy(alg->wrk2, alg->Cx, ms * sizeSub * sizeof(CTYPE));
-      memcpy(alg->wrk2 + ms * sizeSub,
-             alg->Cp + nconv * ms, ms * n_active * sizeof(CTYPE));
-      FN(gemm_nn)(size, out_cols, ms, (CTYPE)1, alg->S,
+      memcpy(alg->wrk2 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S,
                   alg->wrk2, (CTYPE)0, alg->wrk4);
-      memcpy(alg->S, alg->wrk4, size * out_cols * sizeof(CTYPE));
-
-      nconv_locked = nconv;
+      memcpy(alg->S, alg->wrk4, size * 2 * sizeSub * sizeof(CTYPE));
 
       if (alg->AX)
         FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);
@@ -254,18 +233,15 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
       FN(gemm_nn)(size, sizeSub, ms, (CTYPE)1, alg->S,
                   alg->Cx, (CTYPE)0, alg->wrk4);
 
-      /* 2. Project [X, P_active] = S * [Cx_ortho, Cp_active] into second block of wrk4
+      /* 2. Project [X, P] = S * [Cx_ortho, Cp] into second block of wrk4
        *    Must read from S BEFORE residual overwrites W ⊂ S */
       memcpy(alg->wrk2, alg->wrk1, ms * sizeSub * sizeof(CTYPE));
-      memcpy(alg->wrk2 + ms * sizeSub,
-             alg->Cp + nconv * ms, ms * n_active * sizeof(CTYPE));
-      FN(gemm_nn)(size, out_cols, ms, (CTYPE)1, alg->S,
+      memcpy(alg->wrk2 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
+      FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S,
                   alg->wrk2, (CTYPE)0, alg->wrk4 + size * sizeSub);
 
-      /* 3. Overwrite [X, P_active] in S — safe now, both reads from S are done */
-      memcpy(alg->S, alg->wrk4 + size * sizeSub, size * out_cols * sizeof(CTYPE));
-
-      nconv_locked = nconv;
+      /* 3. Overwrite [X, P] in S — safe now, both reads from S are done */
+      memcpy(alg->S, alg->wrk4 + size * sizeSub, size * 2 * sizeSub * sizeof(CTYPE));
 
       if (alg->AX)
         FN(apply_block_op)(alg->A, X, alg->AX, size, sizeSub);

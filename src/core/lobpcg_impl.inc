@@ -39,8 +39,9 @@
  * for mult=2 Rayleigh-Ritz. At iter>=1, S = [X, P, W] is already contiguous for mult=3.
  *
  * Soft-locking: when nconv eigenvectors converge, P and W shrink from sizeSub to
- * n_active = sizeSub - nconv. X stays full width. Compaction at top of each iteration
- * uses P swap trick + gap-fill to make [X, P_active, W_active] contiguous. */
+ * n_active = sizeSub - nconv. X stays full width. Project_back always writes all
+ * sizeSub columns of P, so compaction at top of each iteration is stateless:
+ * just memmove P and memcpy W to remove converged columns. */
 
 /* Helper: Project back X = S * C */
 // TODO: in the long term, get rid of this
@@ -137,7 +138,6 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
   uint8_t useOrtho = 0;
   alg->converged = 0;
   alg->iter = 0;
-  uint64_t nconv_locked = 0;
 
   while (alg->iter < alg->maxIter) {
     const uint64_t nconv = alg->converged;
@@ -145,34 +145,15 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     uint64_t mult = (0 == alg->iter) ? 2 : 3;
     uint64_t sizeW = (0 == alg->iter) ? sizeSub : n_active;
 
-    /* Compact P and W if new convergence since last project_back */
-    if (nconv > nconv_locked && alg->iter > 0) {
-      const uint64_t n_active_prev = sizeSub - nconv_locked;
-      const uint64_t delta = nconv - nconv_locked;
+    /* Compact P and W: remove converged columns from full-width layout.
+     * After project_back, S = [X(sizeSub) | P(sizeSub) | W(sizeSub)].
+     * Shift active cols of P to front, copy active cols of W right after. */
+    if (nconv > 0 && alg->iter > 0) {
       CTYPE *P_base = alg->S + sizeSub * size;
-
-      /* Compact P: swap last delta active cols to front */
-      if (delta <= n_active) {
-        for (uint64_t j = 0; j < delta; j++)
-          memcpy(P_base + j * size,
-                 P_base + (n_active_prev - delta + j) * size,
-                 size * sizeof(CTYPE));
-      } else {
-        memmove(P_base, P_base + delta * size,
-                n_active * size * sizeof(CTYPE));
-      }
-
-      /* Fill 2*nconv gap between P_active and W_active.
-       * Layout: [X | P_active(n_active) | free(nconv) | W_conv(nconv) | W_active(n_active)]
-       * Gap = free + W_conv = 2*nconv contiguous columns. */
-      CTYPE *gap = P_base + n_active * size;
-      CTYPE *W_active = alg->S + (2 * sizeSub + nconv) * size;
-      if (2 * nconv <= n_active) {
-        memcpy(gap, W_active + (n_active - 2 * nconv) * size,
-               2 * nconv * size * sizeof(CTYPE));
-      } else {
-        memmove(gap, W_active, n_active * size * sizeof(CTYPE));
-      }
+      memmove(P_base, P_base + nconv * size, n_active * size * sizeof(CTYPE));
+      memcpy(P_base + n_active * size,
+             alg->S + (2 * sizeSub + nconv) * size,
+             n_active * size * sizeof(CTYPE));
     }
 
     /* W pointer: iter 0 at fixed offset, iter >= 1 right after P_active */
@@ -232,16 +213,11 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
     /* Subspace size for this iteration's projection */
     const uint64_t ms = sizeSub + (0 == alg->iter ? 0 : n_active) + sizeW;
 
-    /* Project back: [X_new, P_active_new] = S * [Cx | Cp_active]
-     * Cp_active = columns nconv..sizeSub-1 of Cp (active P directions only) */
-    const uint64_t out_cols = sizeSub + n_active;
+    /* Project back: [X_new, P_new] = S * [Cx | Cp] — full sizeSub columns each */
     memcpy(alg->wrk1, alg->Cx, ms * sizeSub * sizeof(CTYPE));
-    memcpy(alg->wrk1 + ms * sizeSub,
-           alg->Cp + nconv * ms, ms * n_active * sizeof(CTYPE));
-    FN(gemm_nn)(size, out_cols, ms, (CTYPE)1, alg->S, alg->wrk1, (CTYPE)0, alg->wrk4);
-    memcpy(alg->S, alg->wrk4, size * out_cols * sizeof(CTYPE));
-
-    nconv_locked = nconv;
+    memcpy(alg->wrk1 + ms * sizeSub, alg->Cp, ms * sizeSub * sizeof(CTYPE));
+    FN(gemm_nn)(size, 2 * sizeSub, ms, (CTYPE)1, alg->S, alg->wrk1, (CTYPE)0, alg->wrk4);
+    memcpy(alg->S, alg->wrk4, size * 2 * sizeSub * sizeof(CTYPE));
 
     /* Compute AX for all X */
     if (alg->AX)
