@@ -20,21 +20,6 @@
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #else
-  #define CABS(x) fabs(x)
-  #endif
-#endif
-*/
 
 /* Compute ||G-I_sig||_F from upper triangle of Hermitian G */
 static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
@@ -47,7 +32,7 @@ static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
       sum += 2*v*v;
     }
   }
-  return sqrt(sum);
+  return RSQRT(sum);
 }
 
 /* B-orthogonalize U against V with positive definite B

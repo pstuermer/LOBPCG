@@ -142,7 +142,7 @@ void FN(indefinite_rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
     const RTYPE abs_diag = CABS(diag_val);
 
     if (abs_diag > (RTYPE)1e-30) {
-      const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
+      const RTYPE scale = (RTYPE)1 / RSQRT(abs_diag);
       for (uint64_t k = 0; k < sizeSub; k++)
         Cx[k + i * sizeSub] *= (CTYPE)scale;
     }

@@ -168,7 +168,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
   for (uint64_t i = 0; i < sizeSub; i++) {
     const RTYPE abs_diag = CABS(wrk4[i + i * sizeSub]);
     if (abs_diag > (RTYPE)1e-30) {
-      const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
+      const RTYPE scale = (RTYPE)1 / RSQRT(abs_diag);
       for (uint64_t k = 0; k < sizeSub; k++)
         VR[k + i * sizeSub] *= (CTYPE)scale;
     }
@@ -190,7 +190,7 @@ void FN(indefinite_rayleigh_ritz_modified)(const uint64_t size, const uint64_t n
     const CTYPE diag_val = wrk4[i + i * sizeSub];
     const RTYPE abs_diag = CABS(diag_val);
     if (abs_diag > (RTYPE)1e-30) {
-      const RTYPE scale = (RTYPE)1 / sqrt(abs_diag);
+      const RTYPE scale = (RTYPE)1 / RSQRT(abs_diag);
       for (uint64_t k = 0; k < sizeSub; k++)
         VR[k + i * sizeSub] *= (CTYPE)scale;
     }

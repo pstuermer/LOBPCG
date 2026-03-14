@@ -24,21 +24,7 @@
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #else
-  #define CABS(x) fabs(x)
-  #endif
-#endif
-*/
+
 /**
  * svqb - SVQB orthogonalization via eigendecomposition of scaled Gram matrix
  *
@@ -78,7 +64,7 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
   for (uint64_t i = 0; i < cols; i++) {
     const RTYPE gii = CABS(wrk1[i + i*cols]);
-    D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
+    D[i] = (gii > 0) ? (RTYPE)1/RSQRT(gii) : (RTYPE)1;
   }
 
   /* 3. Scale upper triangle: G̃ = D*G*D */
@@ -96,7 +82,7 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   /* 5. Threshold */
   RTYPE maxeig = 0;
   for (uint64_t i = 0; i < cols; i++)
-    if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)fabs(eigvals[i]);
+    if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)RABS(eigvals[i]);
   const RTYPE thresh = tau * maxeig;
 
   /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
@@ -108,9 +94,9 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
       wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
   }*/
   for (uint64_t j = 0; j < cols; j++) {
-    if (('y' == drop) && (RTYPE)fabs(eigvals[j]) < thresh)
+    if (('y' == drop) && (RTYPE)RABS(eigvals[j]) < thresh)
       continue;
-    const RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]),thresh));
+    const RTYPE df = (RTYPE)1/RSQRT(MAX((RTYPE)fabs(eigvals[j]),thresh));
     for (uint64_t i = 0; i < cols; i++)
       wrk2[i + colsretain*cols] = D[i] * wrk1[i + j*cols] * df;
     colsretain++;

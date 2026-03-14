@@ -15,10 +15,13 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
+#include "lobpcg/type_dispatch.h"
+
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
+/*
 #ifdef TYPE_IS_FLOAT
   #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabsf(x)
@@ -32,6 +35,7 @@
   #define CABS(x) fabs(x)
   #endif
 #endif
+*/
 
 /* Standard Rayleigh-Ritz procedure
  *
@@ -61,7 +65,7 @@ void FN(rayleigh_ritz)(const uint64_t size, const uint64_t sizeSub,
   /* 2. Diagonal scaling D_ii = 1/sqrt(|G_ii|) */
   for (uint64_t i = 0; i < sizeSub; i++) {
     const RTYPE gii = CABS(wrk1[i + i*sizeSub]);
-    D[i] = (gii > 0) ? (RTYPE)1/sqrt(gii) : (RTYPE)1;
+    D[i] = (gii > 0) ? (RTYPE)1/RSQRT(gii) : (RTYPE)1;
   }
 
   /* 3. Scale: G_scaled = D*G*D in wrk1 */
