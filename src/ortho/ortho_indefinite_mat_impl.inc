@@ -70,7 +70,7 @@ uint64_t FN(ortho_indefinite_mat)(const uint64_t m, const uint64_t n_u,
                                   CTYPE *restrict mat,
                                   CTYPE *restrict wrk1, CTYPE *restrict wrk2,
                                   CTYPE *restrict wrk3) {
-  if (0 == n_u || 0 == n_v) return 0;
+  if (0 == n_u || 0 == n_v) return n_u;
 
   if (m < n_u + n_v) {
     fprintf(stderr, "ortho_indefinite_mat: overdetermined m=%lu < n_u+n_v=%lu+%lu\n",

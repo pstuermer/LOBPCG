@@ -96,7 +96,7 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
 			      CTYPE *restrict wrk3,
 			      LINOP *B)
 {
-  if (0 == n_u || 0 == n_v) return 0;
+  if (0 == n_u || 0 == n_v) return n_u;
   if (m < n_u + n_v) {
     fprintf(stderr, "ortho_indefinite: overdetermined m=%lu < n_u+n_v=%lu+%lu\n",
 	    (unsigned long)m, (unsigned long)n_u, (unsigned long)n_v);
