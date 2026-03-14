@@ -4,6 +4,7 @@
 #define PREFIX c
 #define CTYPE c32
 #define RTYPE f32
+#define TYPE_IS_FLOAT
 #define CTYPE_IS_COMPLEX
 
 #include "svqb_mat_impl.inc"

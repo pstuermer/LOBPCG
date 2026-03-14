@@ -5,6 +5,7 @@
 #define PREFIX c
 #define CTYPE c32
 #define RTYPE f32
+#define TYPE_IS_FLOAT
 #define LINOP LinearOperator_c_t
 #define CTYPE_IS_COMPLEX
 
