@@ -18,11 +18,13 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
+#include "lobpcg/type_dispatch.h"
+
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
-
+/*
 #ifdef TYPE_IS_FLOAT
   #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabsf(x)
@@ -36,6 +38,7 @@
   #define CABS(x) fabs(x)
   #endif
 #endif
+*/
 
 /* Fill lower triangle from upper for symmetric/Hermitian matrix */
 static void FN(fill_lower_oi)(uint64_t n, CTYPE *A) {

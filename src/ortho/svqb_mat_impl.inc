@@ -20,10 +20,12 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
+#include "lobpcg/type_dispatch.h"
+
 #ifndef MAX
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
-
+/*
 #ifdef TYPE_IS_FLOAT
   #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabsf(x)
@@ -37,7 +39,7 @@
   #define CABS(x) fabs(x)
   #endif
 #endif
-
+*/
 /**
  * svqb_mat - SVQB orthogonalization with explicit dense metric matrix
  *

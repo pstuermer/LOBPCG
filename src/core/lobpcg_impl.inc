@@ -14,6 +14,8 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
+#include "lobpcg/type_dispatch.h"
+/*
 #ifdef TYPE_IS_FLOAT
   #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabsf(x)
@@ -31,7 +33,7 @@
   #define CREAL(x) (x)
   #endif
 #endif
-
+*/
 /* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
 
 /* Note: S layout is [X, P, W] with X at offset 0, P at offset sizeSub, W at offset 2*sizeSub.

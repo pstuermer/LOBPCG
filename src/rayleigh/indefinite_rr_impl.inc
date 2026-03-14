@@ -19,6 +19,8 @@
 #define CONCAT(a, b) CONCAT2(a, b)
 #define FN(name) CONCAT(PREFIX, name)
 
+#include "lobpcg/type_dispatch.h"
+/*
 #ifdef TYPE_IS_FLOAT
   #ifdef CTYPE_IS_COMPLEX
   #define CABS(x) cabsf(x)
@@ -36,7 +38,7 @@
   #define CREAL(x) (x)
   #endif
 #endif
-
+*/
 #include "bubble_sort_sig_impl.inc"
 
 /* Indefinite Rayleigh-Ritz procedure
