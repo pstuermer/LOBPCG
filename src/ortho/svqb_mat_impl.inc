@@ -104,3 +104,6 @@ uint64_t FN(svqb_mat)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
 #undef FN
 #undef MAX
 #undef CABS
+#undef CREAL
+#undef RABS
+#undef RSQRT

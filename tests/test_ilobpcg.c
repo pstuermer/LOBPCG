@@ -36,7 +36,7 @@ typedef struct {
 
 static void block_laplacian_matvec_d(const LinearOperator_d_t *op,
                                      f64 *restrict x, f64 *restrict y) {
-    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx;
+    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx->data;
     uint64_t m = ctx->m;
     f64 c = ctx->h2_inv;
 
@@ -60,7 +60,7 @@ typedef struct {
 
 static void block_perm_matvec_d(const LinearOperator_d_t *op,
                                 f64 *restrict x, f64 *restrict y) {
-    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx;
+    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx->data;
     uint64_t m = ctx->m;
     memcpy(y,     x + m, m * sizeof(f64));  /* y[0:m]   = x[m:2m] */
     memcpy(y + m, x,     m * sizeof(f64));  /* y[m:2m]  = x[0:m]  */
@@ -79,7 +79,7 @@ typedef struct {
 
 static void block_illcond_matvec_d(const LinearOperator_d_t *op,
                                    f64 *restrict x, f64 *restrict y) {
-  block_illcond_ctx_t *ctx = (block_illcond_ctx_t *)op->ctx;
+  block_illcond_ctx_t *ctx = (block_illcond_ctx_t *)op->ctx->data;
   const uint64_t m = ctx->m;
   const f64 *d = ctx->diag;
   /* y[0:m] = D * x[m:2m],  y[m:2m] = D * x[0:m] */
@@ -95,7 +95,7 @@ static void block_illcond_matvec_d(const LinearOperator_d_t *op,
 
 static void block_laplacian_matvec_s(const LinearOperator_s_t *op,
                                      f32 *restrict x, f32 *restrict y) {
-    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx;
+    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx->data;
     uint64_t m = ctx->m;
     f32 c = (f32)ctx->h2_inv;
 
@@ -114,7 +114,7 @@ static void block_laplacian_matvec_s(const LinearOperator_s_t *op,
 
 static void block_perm_matvec_s(const LinearOperator_s_t *op,
                                 f32 *restrict x, f32 *restrict y) {
-    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx;
+    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx->data;
     uint64_t m = ctx->m;
     memcpy(y,     x + m, m * sizeof(f32));
     memcpy(y + m, x,     m * sizeof(f32));
@@ -126,7 +126,7 @@ static void block_perm_matvec_s(const LinearOperator_s_t *op,
 
 static void block_laplacian_matvec_z(const LinearOperator_z_t *op,
                                      c64 *restrict x, c64 *restrict y) {
-    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx;
+    block_laplacian_ctx_t *ctx = (block_laplacian_ctx_t *)op->ctx->data;
     uint64_t m = ctx->m;
     f64 c = ctx->h2_inv;
 
@@ -145,7 +145,7 @@ static void block_laplacian_matvec_z(const LinearOperator_z_t *op,
 
 static void block_perm_matvec_z(const LinearOperator_z_t *op,
                                 c64 *restrict x, c64 *restrict y) {
-    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx;
+    block_perm_ctx_t *ctx = (block_perm_ctx_t *)op->ctx->data;
     uint64_t m = ctx->m;
     memcpy(y,     x + m, m * sizeof(c64));
     memcpy(y + m, x,     m * sizeof(c64));
@@ -171,16 +171,18 @@ TEST(d_ilobpcg_block_laplacian) {
     block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
     ctx_a->m = m;
     ctx_a->h2_inv = 1.0 / (h * h);
+    linop_ctx_t lctx_a = { .data = ctx_a, .data_size = sizeof(*ctx_a) };
     LinearOperator_d_t A = { .rows = n, .cols = n,
                              .matvec = (matvec_func_d_t)block_laplacian_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx_a };
+                             .ctx = &lctx_a };
 
     /* Block-permutation B */
     block_perm_ctx_t *ctx_b = xcalloc(1, sizeof(block_perm_ctx_t));
     ctx_b->m = m;
+    linop_ctx_t lctx_b = { .data = ctx_b, .data_size = sizeof(*ctx_b) };
     LinearOperator_d_t B = { .rows = n, .cols = n,
                              .matvec = (matvec_func_d_t)block_perm_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx_b };
+                             .ctx = &lctx_b };
 
     d_lobpcg_t *alg = d_ilobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -238,16 +240,18 @@ TEST(z_ilobpcg_block_laplacian) {
     block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
     ctx_a->m = m;
     ctx_a->h2_inv = 1.0 / (h * h);
+    linop_ctx_t lctx_a = { .data = ctx_a, .data_size = sizeof(*ctx_a) };
     LinearOperator_z_t A = { .rows = n, .cols = n,
                              .matvec = (matvec_func_z_t)block_laplacian_matvec_z,
-                             .ctx = (linop_ctx_t *)ctx_a };
+                             .ctx = &lctx_a };
 
     /* Block-permutation B */
     block_perm_ctx_t *ctx_b = xcalloc(1, sizeof(block_perm_ctx_t));
     ctx_b->m = m;
+    linop_ctx_t lctx_b = { .data = ctx_b, .data_size = sizeof(*ctx_b) };
     LinearOperator_z_t B = { .rows = n, .cols = n,
                              .matvec = (matvec_func_z_t)block_perm_matvec_z,
-                             .ctx = (linop_ctx_t *)ctx_b };
+                             .ctx = &lctx_b };
 
     z_lobpcg_t *alg = z_ilobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -308,9 +312,10 @@ TEST(d_ilobpcg_quality5) {
   block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
   ctx_a->m = m;
   ctx_a->h2_inv = 1.0 / (h * h);
+  linop_ctx_t lctx_a = { .data = ctx_a, .data_size = sizeof(*ctx_a) };
   LinearOperator_d_t A = { .rows = n, .cols = n,
                            .matvec = (matvec_func_d_t)block_laplacian_matvec_d,
-                           .ctx = (linop_ctx_t *)ctx_a };
+                           .ctx = &lctx_a };
 
   /* Ill-conditioned block-permutation B */
   block_illcond_ctx_t *ctx_b = xcalloc(1, sizeof(block_illcond_ctx_t));
@@ -319,9 +324,10 @@ TEST(d_ilobpcg_quality5) {
   ctx_b->diag[0] = 1.0;
   for (uint64_t i = 1; i < m; i++)
     ctx_b->diag[i] = ctx_b->diag[i - 1] * r;
+  linop_ctx_t lctx_b = { .data = ctx_b, .data_size = sizeof(*ctx_b) };
   LinearOperator_d_t B = { .rows = n, .cols = n,
                            .matvec = (matvec_func_d_t)block_illcond_matvec_d,
-                           .ctx = (linop_ctx_t *)ctx_b };
+                           .ctx = &lctx_b };
 
   d_lobpcg_t *alg = d_ilobpcg_alloc(n, nev, sizeSub);
   alg->A = &A;
@@ -377,16 +383,18 @@ TEST(s_ilobpcg_block_laplacian) {
     block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
     ctx_a->m = m;
     ctx_a->h2_inv = 1.0 / (h * h);
+    linop_ctx_t lctx_a = { .data = ctx_a, .data_size = sizeof(*ctx_a) };
     LinearOperator_s_t A = { .rows = n, .cols = n,
                              .matvec = (matvec_func_s_t)block_laplacian_matvec_s,
-                             .ctx = (linop_ctx_t *)ctx_a };
+                             .ctx = &lctx_a };
 
     /* Block-permutation B */
     block_perm_ctx_t *ctx_b = xcalloc(1, sizeof(block_perm_ctx_t));
     ctx_b->m = m;
+    linop_ctx_t lctx_b = { .data = ctx_b, .data_size = sizeof(*ctx_b) };
     LinearOperator_s_t B = { .rows = n, .cols = n,
                              .matvec = (matvec_func_s_t)block_perm_matvec_s,
-                             .ctx = (linop_ctx_t *)ctx_b };
+                             .ctx = &lctx_b };
 
     s_lobpcg_t *alg = s_ilobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -440,15 +448,17 @@ TEST(d_ilobpcg_softlock) {
     block_laplacian_ctx_t *ctx_a = xcalloc(1, sizeof(block_laplacian_ctx_t));
     ctx_a->m = m;
     ctx_a->h2_inv = 1.0 / (h * h);
+    linop_ctx_t lctx_a = { .data = ctx_a, .data_size = sizeof(*ctx_a) };
     LinearOperator_d_t A = { .rows = n, .cols = n,
                              .matvec = (matvec_func_d_t)block_laplacian_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx_a };
+                             .ctx = &lctx_a };
 
     block_perm_ctx_t *ctx_b = xcalloc(1, sizeof(block_perm_ctx_t));
     ctx_b->m = m;
+    linop_ctx_t lctx_b = { .data = ctx_b, .data_size = sizeof(*ctx_b) };
     LinearOperator_d_t B = { .rows = n, .cols = n,
                              .matvec = (matvec_func_d_t)block_perm_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx_b };
+                             .ctx = &lctx_b };
 
     d_lobpcg_t *alg = d_ilobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;

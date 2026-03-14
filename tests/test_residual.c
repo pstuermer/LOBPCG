@@ -25,14 +25,14 @@ typedef struct {
 } diag_ctx_d_t;
 
 void diag_matvec_d(const LinearOperator_d_t *op, const f64 *x, f64 *y) {
-  diag_ctx_d_t *ctx = (diag_ctx_d_t*)op->ctx;
+  diag_ctx_d_t *ctx = (diag_ctx_d_t*)op->ctx->data;
   for (uint64_t i = 0; i < ctx->n; i++) {
     y[i] = ctx->diag[i] * x[i];
   }
 }
 
 void diag_cleanup_d(linop_ctx_t *ctx) {
-  diag_ctx_d_t *dctx = (diag_ctx_d_t*)ctx;
+  diag_ctx_d_t *dctx = (diag_ctx_d_t*)ctx->data;
   safe_free((void**)&dctx->diag);
   safe_free((void**)&dctx);
 }
@@ -43,14 +43,14 @@ typedef struct {
 } diag_ctx_z_t;
 
 void diag_matvec_z(const LinearOperator_z_t *op, const c64 *x, c64 *y) {
-  diag_ctx_z_t *ctx = (diag_ctx_z_t*)op->ctx;
+  diag_ctx_z_t *ctx = (diag_ctx_z_t*)op->ctx->data;
   for (uint64_t i = 0; i < ctx->n; i++) {
     y[i] = ctx->diag[i] * x[i];
   }
 }
 
 void diag_cleanup_z(linop_ctx_t *ctx) {
-  diag_ctx_z_t *dctx = (diag_ctx_z_t*)ctx;
+  diag_ctx_z_t *dctx = (diag_ctx_z_t*)ctx->data;
   safe_free((void**)&dctx->diag);
   safe_free((void**)&dctx);
 }
@@ -65,7 +65,7 @@ typedef struct {
 } dense_ctx_d_t;
 
 void dense_matvec_d(const LinearOperator_d_t *op, const f64 *x, f64 *y) {
-  dense_ctx_d_t *ctx = (dense_ctx_d_t*)op->ctx;
+  dense_ctx_d_t *ctx = (dense_ctx_d_t*)op->ctx->data;
   uint64_t n = ctx->n;
   for (uint64_t i = 0; i < n; i++) {
     y[i] = 0.0;
@@ -76,7 +76,7 @@ void dense_matvec_d(const LinearOperator_d_t *op, const f64 *x, f64 *y) {
 }
 
 void dense_cleanup_d(linop_ctx_t *ctx) {
-  dense_ctx_d_t *dctx = (dense_ctx_d_t*)ctx;
+  dense_ctx_d_t *dctx = (dense_ctx_d_t*)ctx->data;
   safe_free((void**)&dctx->data);
   safe_free((void**)&dctx);
 }
@@ -87,7 +87,7 @@ typedef struct {
 } dense_ctx_z_t;
 
 void dense_matvec_z(const LinearOperator_z_t *op, const c64 *x, c64 *y) {
-  dense_ctx_z_t *ctx = (dense_ctx_z_t*)op->ctx;
+  dense_ctx_z_t *ctx = (dense_ctx_z_t*)op->ctx->data;
   uint64_t n = ctx->n;
   for (uint64_t i = 0; i < n; i++) {
     y[i] = 0.0;
@@ -98,7 +98,7 @@ void dense_matvec_z(const LinearOperator_z_t *op, const c64 *x, c64 *y) {
 }
 
 void dense_cleanup_z(linop_ctx_t *ctx) {
-  dense_ctx_z_t *dctx = (dense_ctx_z_t*)ctx;
+  dense_ctx_z_t *dctx = (dense_ctx_z_t*)ctx->data;
   safe_free((void**)&dctx->data);
   safe_free((void**)&dctx);
 }
@@ -108,7 +108,7 @@ void dense_cleanup_z(linop_ctx_t *ctx) {
  * as dense operator (real and complex)
  * ================================================================ */
 
-static void make_B_real(LinearOperator_d_t *B) {
+static void make_B_real(LinearOperator_d_t *B, linop_ctx_t *lctx) {
   dense_ctx_d_t *ctx = xcalloc(1, sizeof(dense_ctx_d_t));
   ctx->n = 3;
   ctx->data = xcalloc(9, sizeof(f64));
@@ -116,23 +116,27 @@ static void make_B_real(LinearOperator_d_t *B) {
   ctx->data[2 + 0*3] = 1.0;  /* B[2,0] */
   ctx->data[1 + 1*3] = 1.0;  /* B[1,1] */
   ctx->data[0 + 2*3] = 1.0;  /* B[0,2] */
+  lctx->data = ctx;
+  lctx->data_size = sizeof(*ctx);
   B->rows = 3; B->cols = 3;
   B->matvec = dense_matvec_d;
   B->cleanup = dense_cleanup_d;
-  B->ctx = ctx;
+  B->ctx = lctx;
 }
 
-static void make_B_complex(LinearOperator_z_t *B) {
+static void make_B_complex(LinearOperator_z_t *B, linop_ctx_t *lctx) {
   dense_ctx_z_t *ctx = xcalloc(1, sizeof(dense_ctx_z_t));
   ctx->n = 3;
   ctx->data = xcalloc(9, sizeof(c64));
   ctx->data[2 + 0*3] = 1.0;
   ctx->data[1 + 1*3] = 1.0;
   ctx->data[0 + 2*3] = 1.0;
+  lctx->data = ctx;
+  lctx->data_size = sizeof(*ctx);
   B->rows = 3; B->cols = 3;
   B->matvec = dense_matvec_z;
   B->cleanup = dense_cleanup_z;
-  B->ctx = ctx;
+  B->ctx = lctx;
 }
 
 /* ================================================================
@@ -149,11 +153,12 @@ int test_get_residual(void) {
     ctx->diag[i] = (f64)(i + 1);
   }
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_d_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_d;
   A.cleanup = diag_cleanup_d;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   f64 *X = xcalloc(n * nev, sizeof(f64));
   f64 *eigVal = xcalloc(nev, sizeof(f64));
@@ -173,7 +178,7 @@ int test_get_residual(void) {
   int pass = (R_norm < TEST_TOLERANCE);
 
   safe_free((void**)&X); safe_free((void**)&eigVal); safe_free((void**)&R); safe_free((void**)&wrk);
-  diag_cleanup_d(ctx);
+  diag_cleanup_d(&lctx);
 
   return pass;
 }
@@ -234,11 +239,12 @@ int test_get_residual_complex(void) {
     ctx->diag[i] = (f64)(i + 1) + 0.0*I;
   }
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_z_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_z;
   A.cleanup = diag_cleanup_z;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   c64 *X = xcalloc(n * nev, sizeof(c64));
   f64 *eigVal = xcalloc(nev, sizeof(f64));
@@ -258,7 +264,7 @@ int test_get_residual_complex(void) {
   int pass = (R_norm < TEST_TOLERANCE);
 
   safe_free((void**)&X); safe_free((void**)&eigVal); safe_free((void**)&R); safe_free((void**)&wrk);
-  diag_cleanup_z(ctx);
+  diag_cleanup_z(&lctx);
 
   return pass;
 }
@@ -277,11 +283,12 @@ int test_get_residual_noneigvec_real(void) {
   ctx->diag = xcalloc(n, sizeof(f64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_d_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_d;
   A.cleanup = diag_cleanup_d;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   f64 X[3] = {1.0, 2.0, 3.0};
   f64 eigVal[1] = {2.0};
@@ -296,7 +303,7 @@ int test_get_residual_noneigvec_real(void) {
   err = sqrt(err);
   printf("  R = [%.1f, %.1f, %.1f], expected [-1, 0, 3], err = %.3e\n", R[0], R[1], R[2], err);
 
-  diag_cleanup_d(ctx);
+  diag_cleanup_d(&lctx);
   return (err < TEST_TOLERANCE);
 }
 
@@ -314,11 +321,12 @@ int test_get_residual_noneigvec_complex(void) {
   ctx->diag = xcalloc(n, sizeof(c64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_z_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_z;
   A.cleanup = diag_cleanup_z;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   c64 X[3] = {1.0+3.0*I, 2.0+2.0*I, 3.0+1.0*I};
   f64 eigVal[1] = {2.0};
@@ -337,7 +345,7 @@ int test_get_residual_noneigvec_complex(void) {
   printf("  R = [%.1f%+.1fi, %.1f%+.1fi, %.1f%+.1fi], err = %.3e\n",
          creal(R[0]), cimag(R[0]), creal(R[1]), cimag(R[1]), creal(R[2]), cimag(R[2]), err);
 
-  diag_cleanup_z(ctx);
+  diag_cleanup_z(&lctx);
   return (err < TEST_TOLERANCE);
 }
 
@@ -356,14 +364,16 @@ int test_get_residual_noneigvec_real_B(void) {
   ctx->diag = xcalloc(n, sizeof(f64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx_a = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_d_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_d;
   A.cleanup = diag_cleanup_d;
-  A.ctx = ctx;
+  A.ctx = &lctx_a;
 
+  linop_ctx_t lctx_b;
   LinearOperator_d_t B;
-  make_B_real(&B);
+  make_B_real(&B, &lctx_b);
 
   f64 X[3] = {1.0, 2.0, 3.0};
   f64 eigVal[1] = {2.0};
@@ -378,8 +388,8 @@ int test_get_residual_noneigvec_real_B(void) {
   err = sqrt(err);
   printf("  R = [%.1f, %.1f, %.1f], expected [-5, 0, 7], err = %.3e\n", R[0], R[1], R[2], err);
 
-  diag_cleanup_d(ctx);
-  dense_cleanup_d(B.ctx);
+  diag_cleanup_d(&lctx_a);
+  dense_cleanup_d(&lctx_b);
   return (err < TEST_TOLERANCE);
 }
 
@@ -398,14 +408,16 @@ int test_get_residual_noneigvec_complex_B(void) {
   ctx->diag = xcalloc(n, sizeof(c64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx_a = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_z_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_z;
   A.cleanup = diag_cleanup_z;
-  A.ctx = ctx;
+  A.ctx = &lctx_a;
 
+  linop_ctx_t lctx_b;
   LinearOperator_z_t B;
-  make_B_complex(&B);
+  make_B_complex(&B, &lctx_b);
 
   c64 X[3] = {1.0+3.0*I, 2.0+2.0*I, 3.0+1.0*I};
   f64 eigVal[1] = {2.0};
@@ -424,8 +436,8 @@ int test_get_residual_noneigvec_complex_B(void) {
   printf("  R = [%.1f%+.1fi, %.1f%+.1fi, %.1f%+.1fi], err = %.3e\n",
          creal(R[0]), cimag(R[0]), creal(R[1]), cimag(R[1]), creal(R[2]), cimag(R[2]), err);
 
-  diag_cleanup_z(ctx);
-  dense_cleanup_z(B.ctx);
+  diag_cleanup_z(&lctx_a);
+  dense_cleanup_z(&lctx_b);
   return (err < TEST_TOLERANCE);
 }
 
@@ -444,11 +456,12 @@ int test_get_residual_norm_noneigvec(void) {
   ctx->diag = xcalloc(n, sizeof(f64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_d_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_d;
   A.cleanup = diag_cleanup_d;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   f64 X[3] = {1.0, 2.0, 3.0};
   f64 eigVal[1] = {2.0};
@@ -468,7 +481,7 @@ int test_get_residual_norm_noneigvec(void) {
   f64 err = fabs(resNorm[0] - expected);
   printf("  resNorm = %.6e, expected = %.6e, err = %.3e\n", resNorm[0], expected, err);
 
-  diag_cleanup_d(ctx);
+  diag_cleanup_d(&lctx);
   return (err < TEST_TOLERANCE);
 }
 
@@ -487,11 +500,12 @@ int test_get_residual_norm_noneigvec_complex(void) {
   ctx->diag = xcalloc(n, sizeof(c64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_z_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_z;
   A.cleanup = diag_cleanup_z;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   c64 X[3] = {1.0+3.0*I, 2.0+2.0*I, 3.0+1.0*I};
   f64 eigVal[1] = {2.0};
@@ -510,7 +524,7 @@ int test_get_residual_norm_noneigvec_complex(void) {
   f64 err = fabs(resNorm[0] - expected);
   printf("  resNorm = %.6e, expected = %.6e, err = %.3e\n", resNorm[0], expected, err);
 
-  diag_cleanup_z(ctx);
+  diag_cleanup_z(&lctx);
   return (err < TEST_TOLERANCE);
 }
 
@@ -532,14 +546,16 @@ int test_get_residual_norm_noneigvec_real_B(void) {
   ctx->diag = xcalloc(n, sizeof(f64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx_a = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_d_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_d;
   A.cleanup = diag_cleanup_d;
-  A.ctx = ctx;
+  A.ctx = &lctx_a;
 
+  linop_ctx_t lctx_b;
   LinearOperator_d_t B;
-  make_B_real(&B);
+  make_B_real(&B, &lctx_b);
 
   f64 X[3] = {1.0, 2.0, 3.0};
   f64 eigVal[1] = {2.0};
@@ -558,8 +574,8 @@ int test_get_residual_norm_noneigvec_real_B(void) {
   f64 err = fabs(resNorm[0] - expected);
   printf("  resNorm = %.6e, expected = %.6e, err = %.3e\n", resNorm[0], expected, err);
 
-  diag_cleanup_d(ctx);
-  dense_cleanup_d(B.ctx);
+  diag_cleanup_d(&lctx_a);
+  dense_cleanup_d(&lctx_b);
   return (err < TEST_TOLERANCE);
 }
 
@@ -585,14 +601,16 @@ int test_get_residual_norm_noneigvec_complex_B(void) {
   ctx->diag = xcalloc(n, sizeof(c64));
   ctx->diag[0] = 1.0; ctx->diag[1] = 2.0; ctx->diag[2] = 3.0;
 
+  linop_ctx_t lctx_a = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_z_t A;
   A.rows = n; A.cols = n;
   A.matvec = diag_matvec_z;
   A.cleanup = diag_cleanup_z;
-  A.ctx = ctx;
+  A.ctx = &lctx_a;
 
+  linop_ctx_t lctx_b;
   LinearOperator_z_t B;
-  make_B_complex(&B);
+  make_B_complex(&B, &lctx_b);
 
   c64 X[3] = {1.0+3.0*I, 2.0+2.0*I, 3.0+1.0*I};
   f64 eigVal[1] = {2.0};
@@ -611,8 +629,8 @@ int test_get_residual_norm_noneigvec_complex_B(void) {
   f64 err = fabs(resNorm[0] - expected);
   printf("  resNorm = %.6e, expected = %.6e, err = %.3e\n", resNorm[0], expected, err);
 
-  diag_cleanup_z(ctx);
-  dense_cleanup_z(B.ctx);
+  diag_cleanup_z(&lctx_a);
+  dense_cleanup_z(&lctx_b);
   return (err < TEST_TOLERANCE);
 }
 

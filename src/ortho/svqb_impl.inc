@@ -82,21 +82,16 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
   /* 5. Threshold */
   RTYPE maxeig = 0;
   for (uint64_t i = 0; i < cols; i++)
-    if ((RTYPE)fabs(eigvals[i]) > maxeig) maxeig = (RTYPE)RABS(eigvals[i]);
+    if (RABS(eigvals[i]) > maxeig) maxeig = RABS(eigvals[i]);
   const RTYPE thresh = tau * maxeig;
 
   /* 6. Fused transform: T = D * V * D_final in wrk2 (cols x cols)
    *    where D_final_jj = 1/sqrt(max(|λ_j|, thresh)) 
    *    if dropping is activated it will skip those eigenpairs */
-  /*  for (uint64_t j = 0; j < colsdrop; j++) {
-    const RTYPE df = (RTYPE)1/sqrt(MAX((RTYPE)fabs(eigvals[j]), thresh));
-    for (uint64_t i = 0; i < cols; i++)
-      wrk2[i + j*cols] = D[i] * wrk1[i + j*cols] * df;
-  }*/
   for (uint64_t j = 0; j < cols; j++) {
     if (('y' == drop) && (RTYPE)RABS(eigvals[j]) < thresh)
       continue;
-    const RTYPE df = (RTYPE)1/RSQRT(MAX((RTYPE)fabs(eigvals[j]),thresh));
+    const RTYPE df = (RTYPE)1/RSQRT(MAX(RABS(eigvals[j]),thresh));
     for (uint64_t i = 0; i < cols; i++)
       wrk2[i + colsretain*cols] = D[i] * wrk1[i + j*cols] * df;
     colsretain++;
@@ -115,3 +110,6 @@ uint64_t FN(svqb)(const uint64_t rows, const uint64_t cols, const RTYPE tau,
 #undef FN
 #undef MAX
 #undef CABS
+#undef CREAL
+#undef RABS
+#undef RSQRT

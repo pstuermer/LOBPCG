@@ -24,20 +24,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
-/* Compute ||G - I_sig||_F from upper triangle of Hermitian G (n x n, lda = n)
- * After SVQB with indefinite mat, diag(G) ~ +/-1, so check |G_jj| ~ 1 */
-static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
-  RTYPE sum = 0;
-  for (uint64_t j = 0; j < n; j++) {
-    const RTYPE d = CABS(G[j + j*n]) - (RTYPE)1;
-    sum += d*d;
-    for (uint64_t i = 0; i < j; i++) {
-      const RTYPE v = CABS(G[i + j*n]);
-      sum += 2*v*v;
-    }
-  }
-  return RSQRT(sum);
-}
+#include "ortho_err_upper_impl.inc"
 
 /**
  * ortho_indefinite_mat - Matrix-based B-orthogonalization of U against V
@@ -140,3 +127,6 @@ uint64_t FN(ortho_indefinite_mat)(const uint64_t m, const uint64_t n_u,
 #undef FN
 #undef MAX
 #undef CABS
+#undef CREAL
+#undef RABS
+#undef RSQRT

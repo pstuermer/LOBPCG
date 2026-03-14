@@ -31,13 +31,13 @@ typedef struct { uint64_t n; c64 *A; } dense_ctx_z_t;
 
 static void dense_matvec_d(const LinearOperator_d_t *op,
                            f64 *restrict x, f64 *restrict y) {
-    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx;
+    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx->data;
     d_gemm_nn(ctx->n, 1, ctx->n, 1.0, ctx->A, x, 0.0, y);
 }
 
 static void dense_matvec_z(const LinearOperator_z_t *op,
                            c64 *restrict x, c64 *restrict y) {
-    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx;
+    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx->data;
     z_gemm_nn(ctx->n, 1, ctx->n, (c64)1, ctx->A, x, (c64)0, y);
 }
 
@@ -52,7 +52,7 @@ typedef struct {
 
 static void laplacian_matvec_d(const LinearOperator_d_t *op,
                                const f64 *x, f64 *y) {
-    laplacian_ctx_t *ctx = (laplacian_ctx_t *)op->ctx;
+    laplacian_ctx_t *ctx = (laplacian_ctx_t *)op->ctx->data;
     uint64_t n = ctx->n;
     f64 c = ctx->h2_inv;
     y[0] = c * (2.0 * x[0] - x[1]);
@@ -72,7 +72,7 @@ typedef struct {
 
 static void laplacian_matvec_s(const LinearOperator_s_t *op,
                                const f32 *x, f32 *y) {
-    laplacian_ctx_s_t *ctx = (laplacian_ctx_s_t *)op->ctx;
+    laplacian_ctx_s_t *ctx = (laplacian_ctx_s_t *)op->ctx->data;
     uint64_t n = ctx->n;
     f32 c = ctx->h2_inv;
     y[0] = c * (2.0f * x[0] - x[1]);
@@ -181,8 +181,9 @@ TEST(d_lobpcg_4x4) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A4x4, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     d_lobpcg_t *alg = d_lobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -223,8 +224,9 @@ TEST(z_lobpcg_4x4) {
     ctx->A = xcalloc(n * n, sizeof(c64));
     for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A4x4[i] + 0*I;
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     z_lobpcg_t *alg = z_lobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -265,8 +267,9 @@ TEST(d_lobpcg_6x6) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A6x6, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     d_lobpcg_t *alg = d_lobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -308,8 +311,9 @@ TEST(d_lobpcg_6x6_nev2) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A6x6, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     d_lobpcg_t *alg = d_lobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;
@@ -351,9 +355,10 @@ TEST(d_lobpcg_laplacian) {
     ctx->n = n;
     ctx->h2_inv = 1.0 / (h * h);
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n,
                              .matvec = (void (*)(const LinearOperator_d_t *, f64 *, f64 *))laplacian_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     const uint64_t sizeSub = 5;
     d_lobpcg_t *alg = d_lobpcg_alloc(n, nev, sizeSub);
@@ -393,9 +398,10 @@ TEST(s_lobpcg_laplacian) {
     ctx->n = n;
     ctx->h2_inv = 1.0f / (h * h);
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_s_t A = { .rows = n, .cols = n,
                              .matvec = (void (*)(const LinearOperator_s_t *, f32 *, f32 *))laplacian_matvec_s,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     const uint64_t sizeSub = 5;
     s_lobpcg_t *alg = s_lobpcg_alloc(n, nev, sizeSub);
@@ -423,7 +429,7 @@ typedef struct { uint64_t n; f64 *diag; } diag_ctx_d_t;
 
 static void diag_matvec_d(const LinearOperator_d_t *op,
                            const f64 *x, f64 *y) {
-    diag_ctx_d_t *ctx = (diag_ctx_d_t *)op->ctx;
+    diag_ctx_d_t *ctx = (diag_ctx_d_t *)op->ctx->data;
     for (uint64_t i = 0; i < ctx->n; i++)
         y[i] = ctx->diag[i] * x[i];
 }
@@ -442,9 +448,10 @@ TEST(d_lobpcg_softlock) {
     ctx->diag = xcalloc(n, sizeof(f64));
     for (uint64_t i = 0; i < n; i++) ctx->diag[i] = (f64)(i + 1);
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n,
         .matvec = (void (*)(const LinearOperator_d_t *, f64 *, f64 *))diag_matvec_d,
-        .ctx = (linop_ctx_t *)ctx };
+        .ctx = &lctx };
 
     d_lobpcg_t *alg = d_lobpcg_alloc(n, nev, sizeSub);
     alg->A = &A;

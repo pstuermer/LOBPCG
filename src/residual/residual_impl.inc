@@ -15,26 +15,7 @@
 #define FN(name) CONCAT(PREFIX, name)
 
 #include "lobpcg/type_dispatch.h"
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #define CREAL(x) (x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabs(x)
-  #define CREAL(x) (x)
-  #endif
-#endif
-#define RABS(x) ((x) >= 0 ? (x) : -(x))
-*/
+
 /* Compute residual R = A*X - B*X*eigVal
  *
  * Inputs:
@@ -123,3 +104,4 @@ void FN(get_residual_norm)(const uint64_t size, const uint64_t nev,
 #undef CABS
 #undef CREAL
 #undef RABS
+#undef RSQRT

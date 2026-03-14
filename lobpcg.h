@@ -38,6 +38,7 @@
     ctype *restrict rr_ggev;                        \
 						    \
     int8_t implicit_product_update;		    \
+    int8_t verbosity;				    \
                                                     \
     uint64_t iter;                                  \
     uint64_t nev;                                   \

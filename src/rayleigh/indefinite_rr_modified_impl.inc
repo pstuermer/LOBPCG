@@ -261,3 +261,5 @@ cleanup:
 #undef MIN
 #undef CABS
 #undef CREAL
+#undef RABS
+#undef RSQRT

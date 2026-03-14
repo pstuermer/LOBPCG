@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <inttypes.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
@@ -18,25 +19,7 @@
 #define FN(name) CONCAT(PREFIX, name)
 
 #include "lobpcg/type_dispatch.h"
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #define CREAL(x) (x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabs(x)
-  #define CREAL(x) (x)
-  #endif
-#endif
-*/
+
 /* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
 
 /* Indefinite LOBPCG solver
@@ -82,6 +65,17 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
     return;
   }
 
+  if (nev > sizeSub) {
+    fprintf(stderr, "ilobpcg: nev (%lu) > sizeSub (%lu)\n",
+            (unsigned long)nev, (unsigned long)sizeSub);
+    return;
+  }
+  if (3 * sizeSub > size) {
+    fprintf(stderr, "ilobpcg: 3*sizeSub (%lu) > size (%lu)\n",
+            (unsigned long)(3 * sizeSub), (unsigned long)size);
+    return;
+  }
+
   /* X, P, W live contiguously in alg->S: [X | P | W]
    * iter==0 uses [X, W] (mult=2), iter>0 uses [X, P, W] (mult=3) */
   CTYPE *restrict X = alg->S;
@@ -91,7 +85,8 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   /* Estimate operator norms */
   const RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
   const RTYPE BNorm = FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2);
-  printf("ANorm: %.5e\t BNorm: %.5e\n", ANorm, BNorm);
+  if (alg->verbosity > 0)
+    printf("ANorm: %.5e\t BNorm: %.5e\n", ANorm, BNorm);
 
   /* Initialize eigenvectors if needed */
   // TODO: here a custom initialization would be good
@@ -129,11 +124,13 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
   FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
                         alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
 
-  for (uint64_t i = 0; i < nev; i++) {
-    printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-           i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+  if (alg->verbosity > 0) {
+    for (uint64_t i = 0; i < nev; i++) {
+      printf("Eigenvalue %" PRIu64 ": %.9e\t Residual Norm: %.5e\n",
+             i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+    }
+    printf("\n");
   }
-  printf("\n");
 
   /* Main iteration loop */
   alg->converged = 0;
@@ -265,13 +262,15 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
       alg->converged++;
     }
 
-    printf("Iteration %ld\t Converged Eigenpairs %ld/%ld\n",
-           alg->iter, alg->converged, nev);
-    for (uint64_t i = 0; i < nev; i++) {
-      printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-             i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+    if (alg->verbosity > 0) {
+      printf("Iteration %" PRIu64 "\t Converged Eigenpairs: %" PRIu64 "/%" PRIu64 "\n",
+             alg->iter, alg->converged, nev);
+      for (uint64_t i = 0; i < nev; i++) {
+        printf("Eigenvalue %" PRIu64 ": %.9e\t Residual Norm: %.5e\n",
+               i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+      }
+      printf("\n");
     }
-    printf("\n");
 
     if (alg->converged == nev) {
       break;
@@ -288,3 +287,5 @@ void FN(ilobpcg)(FN(lobpcg_t) *alg) {
 #undef EPS_TOL
 #undef CABS
 #undef CREAL
+#undef RABS
+#undef RSQRT

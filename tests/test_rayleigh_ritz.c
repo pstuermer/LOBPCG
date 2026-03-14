@@ -28,13 +28,13 @@ typedef struct { uint64_t n; c64 *A; } dense_ctx_z_t;
 
 static void dense_matvec_d(const LinearOperator_d_t *op,
                            f64 *restrict x, f64 *restrict y) {
-    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx;
+    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx->data;
     d_gemm_nn(ctx->n, 1, ctx->n, 1.0, ctx->A, x, 0.0, y);
 }
 
 static void dense_matvec_z(const LinearOperator_z_t *op,
                            c64 *restrict x, c64 *restrict y) {
-    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx;
+    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx->data;
     z_gemm_nn(ctx->n, 1, ctx->n, (c64)1, ctx->A, x, (c64)0, y);
 }
 
@@ -43,7 +43,7 @@ typedef struct { uint64_t n; f64 scale; } scale_ctx_d_t;
 
 static void scale_matvec_d(const LinearOperator_d_t *op,
                            f64 *restrict x, f64 *restrict y) {
-    scale_ctx_d_t *ctx = (scale_ctx_d_t *)op->ctx;
+    scale_ctx_d_t *ctx = (scale_ctx_d_t *)op->ctx->data;
     for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->scale * x[i];
 }
 
@@ -204,8 +204,9 @@ TEST(d_rr_4x4) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A4x4, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     f64 *S    = xcalloc(n * nev, sizeof(f64));
     f64 *Cx   = xcalloc(nev * nev, sizeof(f64));
@@ -256,8 +257,9 @@ TEST(z_rr_4x4) {
     ctx->A = xcalloc(n * n, sizeof(c64));
     for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A4x4[i] + 0*I;
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     c64 *S    = xcalloc(n * nev, sizeof(c64));
     c64 *Cx   = xcalloc(nev * nev, sizeof(c64));
@@ -312,10 +314,12 @@ TEST(d_rr_4x4_with_B) {
     ctxB->n = n;
     ctxB->scale = 2.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = scale_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f64 *S    = xcalloc(n * nev, sizeof(f64));
     f64 *Cx   = xcalloc(nev * nev, sizeof(f64));
@@ -371,8 +375,9 @@ TEST(d_rr_modified_ortho) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A6x6, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
     f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));
@@ -426,8 +431,9 @@ TEST(z_rr_modified_ortho) {
     ctx->A = xcalloc(n * n, sizeof(c64));
     for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A6x6[i] + 0*I;
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     c64 *S    = xcalloc(n * sizeSub, sizeof(c64));
     c64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(c64));
@@ -483,8 +489,9 @@ TEST(d_rr_modified_chol) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A6x6, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
     f64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(f64));
@@ -545,8 +552,9 @@ TEST(z_rr_modified_chol) {
     ctx->A = xcalloc(n * n, sizeof(c64));
     for (uint64_t i = 0; i < n * n; i++) ctx->A[i] = A6x6[i] + 0*I;
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     c64 *S    = xcalloc(n * sizeSub, sizeof(c64));
     c64 *Cx   = xcalloc(sizeSub * sizeSub, sizeof(c64));
@@ -605,8 +613,9 @@ TEST(d_rr_modified_mult3) {
     ctx->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctx->A, A6x6, n * n * sizeof(f64));
 
+    linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctx };
+                             .ctx = &lctx };
 
     /* S: 6x6, first 4 cols from reference + 2 additional independent vectors */
     f64 *S = xcalloc(n * sizeSub, sizeof(f64));

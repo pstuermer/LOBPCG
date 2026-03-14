@@ -39,22 +39,7 @@ static void FN(fill_lower_oi)(uint64_t n, CTYPE *A) {
 #endif
 }
 
-/* Compute ||G - I_sig||_F from upper triangle of Hermitian G (n x n, lda = n)
- * After SVQB with indefinite B, diag(G) ≈ ±1, so check |G_jj| ≈ 1 */
-static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
-  RTYPE sum = 0;
-  for (uint64_t j = 0; j < n; j++) {
-    /* Diagonal: (|G_jj| - 1)^2 — handles ±1 signature */
-    RTYPE d = CABS(G[j + j * n]) - (RTYPE)1;
-    sum += d * d;
-    /* Off-diagonal upper triangle: 2*|G_ij|^2 (accounts for lower) */
-    for (uint64_t i = 0; i < j; i++) {
-      RTYPE v = CABS(G[i + j * n]);
-      sum += 2 * v * v;
-    }
-  }
-  return RSQRT(sum);
-}
+#include "ortho_err_upper_impl.inc"
 
 /**
  * ortho_indefinite - B-orthogonalize U against V with indefinite B
@@ -69,7 +54,7 @@ static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
  * @param sig       [in] n_v x n_v signature matrix. If NULL, computed as V^H*B*V
  * @param wrk1      Workspace: m * max(n_u, n_v) — gram result / sig*coef temp / svqb scratch
  * @param wrk2      Workspace: m * max(n_u, n_v) — gram scratch (holds B*U after gram_self)
- * @param wrk3      Workspace: max(n_v * n_u, n_v * n_v, n_u * n_u) — cross-gram result / svqb scratch
+ * @param wrk3      Workspace: m * max(n_u, n_v) — svqb scratch (holds U_new = U*T inside svqb)
  * @param B         Indefinite B operator (NULL = identity)
  *
  * @return Number of columns retained in U
@@ -188,3 +173,6 @@ uint64_t FN(ortho_indefinite)(const uint64_t m,
 #undef FN
 #undef MAX
 #undef CABS
+#undef CREAL
+#undef RABS
+#undef RSQRT

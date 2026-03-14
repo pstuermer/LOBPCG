@@ -21,25 +21,13 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #endif
 
-/* Compute ||G-I_sig||_F from upper triangle of Hermitian G */
-static RTYPE FN(ortho_err_upper)(uint64_t n, const CTYPE *G) {
-  RTYPE sum = 0;
-  for (uint64_t j = 0; j < n; j++) {
-    const RTYPE d = CABS(G[j + j*n]) - (RTYPE)1;
-    sum += d*d;
-    for (uint64_t i = 0; i < j; i++) {
-      const RTYPE v = CABS(G[i + j*n]);
-      sum += 2*v*v;
-    }
-  }
-  return RSQRT(sum);
-}
+#include "ortho_err_upper_impl.inc"
 
 /* B-orthogonalize U against V with positive definite B
  *
  * Workspace layout:
  *   wrk1: m*max(n_u,n_v) — gram scratch (holds B*V or B*U after gram calls)
- *   wrk2: max(n_v*n_u, n_u*n_u) — gram result storage
+ *   wrk2: m * max(n_u, n_v) — gram scratch (holds B*U inside svqb)
  *   wrk3: m*max(n_u,n_v) — svqb scratch
  *
  * Algorithm:
@@ -141,3 +129,6 @@ uint64_t FN(ortho_drop)(const uint64_t m, const uint64_t n_u, const uint64_t n_v
 #undef FN
 #undef MAX
 #undef CABS
+#undef CREAL
+#undef RABS
+#undef RSQRT

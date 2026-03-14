@@ -20,25 +20,7 @@
 #define FN(name) CONCAT(PREFIX, name)
 
 #include "lobpcg/type_dispatch.h"
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #define CREAL(x) (x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabs(x)
-  #define CREAL(x) (x)
-  #endif
-#endif
-*/
+
 #include "bubble_sort_sig_impl.inc"
 
 /* Indefinite Rayleigh-Ritz procedure
@@ -171,3 +153,5 @@ cleanup:
 #undef FN
 #undef CABS
 #undef CREAL
+#undef RABS
+#undef RSQRT

@@ -21,22 +21,6 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #endif
 
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #else
-  #define CABS(x) fabs(x)
-  #endif
-#endif
-*/
-
 /* Standard Rayleigh-Ritz procedure
  *
  * Algorithm:
@@ -120,3 +104,6 @@ cleanup:
 #undef FN
 #undef MIN
 #undef CABS
+#undef CREAL
+#undef RABS
+#undef RSQRT

@@ -20,7 +20,7 @@ typedef struct {
 } dense_ctx_d_t;
 
 void dense_matvec_d(const LinearOperator_d_t *op, const f64 *x, f64 *y) {
-  dense_ctx_d_t *ctx = (dense_ctx_d_t*)op->ctx;
+  dense_ctx_d_t *ctx = (dense_ctx_d_t*)op->ctx->data;
   uint64_t n = ctx->n;
   for (uint64_t i = 0; i < n; i++) {
     y[i] = 0.0;
@@ -37,7 +37,7 @@ typedef struct {
 } dense_ctx_z_t;
 
 void dense_matvec_z(const LinearOperator_z_t *op, const c64 *x, c64 *y) {
-  dense_ctx_z_t *ctx = (dense_ctx_z_t*)op->ctx;
+  dense_ctx_z_t *ctx = (dense_ctx_z_t*)op->ctx->data;
   uint64_t n = ctx->n;
   for (uint64_t i = 0; i < n; i++) {
     y[i] = 0.0;
@@ -64,11 +64,12 @@ int test_estimate_norm_real(void) {
   }
   /* Matrix is: [[1,4,7],[2,5,8],[3,6,9]] */
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_d_t A;
   A.rows = n; A.cols = n;
   A.matvec = dense_matvec_d;
   A.cleanup = NULL;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   f64 *wrk1 = xcalloc(n, sizeof(f64));
   f64 *wrk2 = xcalloc(n, sizeof(f64));
@@ -101,11 +102,12 @@ int test_estimate_norm_complex(void) {
     ctx->data[k] = (f64)(k + 1) + (f64)(9 - k) * I;
   }
 
+  linop_ctx_t lctx = { .data = ctx, .data_size = sizeof(*ctx) };
   LinearOperator_z_t A;
   A.rows = n; A.cols = n;
   A.matvec = dense_matvec_z;
   A.cleanup = NULL;
-  A.ctx = ctx;
+  A.ctx = &lctx;
 
   /* Compute reference spectral radius via LAPACK z_geev */
   c64 *Acopy = xcalloc(9, sizeof(c64));

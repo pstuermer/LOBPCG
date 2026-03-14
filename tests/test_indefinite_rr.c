@@ -33,28 +33,28 @@
 typedef struct { uint64_t n; f32 *diag; } diag_ctx_s_t;
 
 void diag_matvec_s(const LinearOperator_s_t *op, f32 *restrict x, f32 *restrict y) {
-    diag_ctx_s_t *ctx = (diag_ctx_s_t *)op->ctx;
+    diag_ctx_s_t *ctx = (diag_ctx_s_t *)op->ctx->data;
     for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
 }
 
 typedef struct { uint64_t n; f64 *diag; } diag_ctx_d_t;
 
 void diag_matvec_d(const LinearOperator_d_t *op, f64 *restrict x, f64 *restrict y) {
-    diag_ctx_d_t *ctx = (diag_ctx_d_t *)op->ctx;
+    diag_ctx_d_t *ctx = (diag_ctx_d_t *)op->ctx->data;
     for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
 }
 
 typedef struct { uint64_t n; f32 *diag; } diag_ctx_c_t;
 
 void diag_matvec_c(const LinearOperator_c_t *op, c32 *restrict x, c32 *restrict y) {
-    diag_ctx_c_t *ctx = (diag_ctx_c_t *)op->ctx;
+    diag_ctx_c_t *ctx = (diag_ctx_c_t *)op->ctx->data;
     for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
 }
 
 typedef struct { uint64_t n; f64 *diag; } diag_ctx_z_t;
 
 void diag_matvec_z(const LinearOperator_z_t *op, c64 *restrict x, c64 *restrict y) {
-    diag_ctx_z_t *ctx = (diag_ctx_z_t *)op->ctx;
+    diag_ctx_z_t *ctx = (diag_ctx_z_t *)op->ctx->data;
     for (uint64_t i = 0; i < ctx->n; i++) y[i] = ctx->diag[i] * x[i];
 }
 
@@ -67,13 +67,13 @@ typedef struct { uint64_t n; c64 *A; } dense_ctx_z_t;
 
 static void dense_matvec_d(const LinearOperator_d_t *op,
                            f64 *restrict x, f64 *restrict y) {
-    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx;
+    dense_ctx_d_t *ctx = (dense_ctx_d_t *)op->ctx->data;
     d_gemm_nn(ctx->n, 1, ctx->n, 1.0, ctx->A, x, 0.0, y);
 }
 
 static void dense_matvec_z(const LinearOperator_z_t *op,
                            c64 *restrict x, c64 *restrict y) {
-    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx;
+    dense_ctx_z_t *ctx = (dense_ctx_z_t *)op->ctx->data;
     z_gemm_nn(ctx->n, 1, ctx->n, (c64)1, ctx->A, x, (c64)0, y);
 }
 
@@ -240,10 +240,12 @@ TEST(d_indef_rr_diag) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f64 *S    = xcalloc(n * n, sizeof(f64));
     f64 *Cx   = xcalloc(n * n, sizeof(f64));
@@ -299,10 +301,12 @@ TEST(s_indef_rr_diag) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0f : -1.0f;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_s_t A = { .rows = n, .cols = n, .matvec = diag_matvec_s,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_s_t B = { .rows = n, .cols = n, .matvec = diag_matvec_s,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f32 *S    = xcalloc(n * n, sizeof(f32));
     f32 *Cx   = xcalloc(n * n, sizeof(f32));
@@ -358,10 +362,12 @@ TEST(z_indef_rr_diag) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t B = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     c64 *S    = xcalloc(n * n, sizeof(c64));
     c64 *Cx   = xcalloc(n * n, sizeof(c64));
@@ -417,10 +423,12 @@ TEST(c_indef_rr_diag) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0f : -1.0f;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_c_t A = { .rows = n, .cols = n, .matvec = diag_matvec_c,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_c_t B = { .rows = n, .cols = n, .matvec = diag_matvec_c,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     c32 *S    = xcalloc(n * n, sizeof(c32));
     c32 *Cx   = xcalloc(n * n, sizeof(c32));
@@ -482,10 +490,12 @@ TEST(d_indef_rr_modified_diag) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
     for (uint64_t j = 0; j < sizeSub; j++) S[j + j * n] = 1.0;
@@ -556,10 +566,12 @@ TEST(d_indef_rr_modified_diag_mult3) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < 5) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f64 *S    = xcalloc(n * sizeSub, sizeof(f64));
     for (uint64_t j = 0; j < sizeSub; j++) S[j + j * n] = 1.0;
@@ -622,10 +634,12 @@ TEST(z_indef_rr_modified_diag) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t B = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     c64 *S    = xcalloc(n * sizeSub, sizeof(c64));
     for (uint64_t j = 0; j < sizeSub; j++) S[j + j * n] = 1.0 + 0 * I;
@@ -692,8 +706,9 @@ TEST(d_indef_rr_perm) {
     ctxA->diag = xcalloc(n, sizeof(f64));
     for (uint64_t i = 0; i < n; i++) ctxA->diag[i] = (f64)(i + 1);
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t *B = create_perm_B_d(n);
 
     f64 *S    = xcalloc(n * n, sizeof(f64));
@@ -751,8 +766,9 @@ TEST(z_indef_rr_perm) {
     ctxA->diag = xcalloc(n, sizeof(f64));
     for (uint64_t i = 0; i < n; i++) ctxA->diag[i] = (f64)(i + 1);
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t *B = create_perm_B_z(n);
 
     c64 *S    = xcalloc(n * n, sizeof(c64));
@@ -810,8 +826,9 @@ TEST(d_indef_rr_modified_perm) {
     ctxA->diag = xcalloc(n, sizeof(f64));
     for (uint64_t i = 0; i < n; i++) ctxA->diag[i] = (f64)(i + 1);
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t *B = create_perm_B_d(n);
 
     f64 *S = xcalloc(n * sizeSub, sizeof(f64));
@@ -868,8 +885,9 @@ TEST(z_indef_rr_modified_perm) {
     ctxA->diag = xcalloc(n, sizeof(f64));
     for (uint64_t i = 0; i < n; i++) ctxA->diag[i] = (f64)(i + 1);
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t *B = create_perm_B_z(n);
 
     c64 *S = xcalloc(n * sizeSub, sizeof(c64));
@@ -941,10 +959,12 @@ TEST(d_indef_rr_dense) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f64 *S    = xcalloc(n * n, sizeof(f64));
     f64 *Cx   = xcalloc(n * n, sizeof(f64));
@@ -1009,10 +1029,12 @@ TEST(z_indef_rr_dense) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t B = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     c64 *S    = xcalloc(n * n, sizeof(c64));
     c64 *Cx   = xcalloc(n * n, sizeof(c64));
@@ -1073,10 +1095,12 @@ TEST(d_indef_rr_modified_dense) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t B = { .rows = n, .cols = n, .matvec = diag_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     f64 *S = xcalloc(n * sizeSub, sizeof(f64));
     for (uint64_t j = 0; j < sizeSub; j++) S[j + j * n] = 1.0;
@@ -1142,10 +1166,12 @@ TEST(z_indef_rr_modified_dense) {
     for (uint64_t i = 0; i < n; i++)
         ctxB->diag[i] = (i < n / 2) ? 1.0 : -1.0;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
+    linop_ctx_t lctx_b = { .data = ctxB, .data_size = sizeof(*ctxB) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t B = { .rows = n, .cols = n, .matvec = diag_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxB };
+                             .ctx = &lctx_b };
 
     c64 *S = xcalloc(n * sizeSub, sizeof(c64));
     for (uint64_t j = 0; j < sizeSub; j++) S[j + j * n] = 1.0 + 0 * I;
@@ -1206,8 +1232,9 @@ TEST(d_indef_rr_dense_perm) {
     ctxA->A = xcalloc(n * n, sizeof(f64));
     memcpy(ctxA->A, A6x6, n * n * sizeof(f64));
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
     LinearOperator_d_t A = { .rows = n, .cols = n, .matvec = dense_matvec_d,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_d_t *B = create_perm_B_d(n);
 
     f64 *S    = xcalloc(n * n, sizeof(f64));
@@ -1262,8 +1289,9 @@ TEST(z_indef_rr_dense_perm) {
     ctxA->A = xcalloc(n * n, sizeof(c64));
     for (uint64_t i = 0; i < n * n; i++) ctxA->A[i] = A6x6[i] + 0*I;
 
+    linop_ctx_t lctx_a = { .data = ctxA, .data_size = sizeof(*ctxA) };
     LinearOperator_z_t A = { .rows = n, .cols = n, .matvec = dense_matvec_z,
-                             .ctx = (linop_ctx_t *)ctxA };
+                             .ctx = &lctx_a };
     LinearOperator_z_t *B = create_perm_B_z(n);
 
     c64 *S    = xcalloc(n * n, sizeof(c64));

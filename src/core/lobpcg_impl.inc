@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <inttypes.h>
 #include "lobpcg/memory.h"
 
 #define CONCAT2(a, b) a##_##b
@@ -15,25 +16,7 @@
 #define FN(name) CONCAT(PREFIX, name)
 
 #include "lobpcg/type_dispatch.h"
-/*
-#ifdef TYPE_IS_FLOAT
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabsf(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabsf(x)
-  #define CREAL(x) (x)
-  #endif
-#else
-  #ifdef CTYPE_IS_COMPLEX
-  #define CABS(x) cabs(x)
-  #define CREAL(x) creal(x)
-  #else
-  #define CABS(x) fabs(x)
-  #define CREAL(x) (x)
-  #endif
-#endif
-*/
+
 /* fill_random and estimate_norm are linked from src/residual/estimate_norm_*.c */
 
 /* Note: S layout is [X, P, W] with X at offset 0, P at offset sizeSub, W at offset 2*sizeSub.
@@ -103,7 +86,8 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
   const RTYPE ANorm = FN(estimate_norm)(size, alg->A, alg->wrk1, alg->wrk2);
   const RTYPE BNorm = (NULL != alg->B) ? FN(estimate_norm)(size, alg->B, alg->wrk1, alg->wrk2) : (RTYPE)1;
 
-  printf("F-Norm: %.5e %.5e\n", ANorm, BNorm);
+  if (alg->verbosity > 0)
+    printf("F-Norm: %.5e %.5e\n", ANorm, BNorm);
 
   /* Initialize eigenvectors if needed (check if S is zero) */
   RTYPE x_norm = FN(nrm2)(size * sizeSub, X);
@@ -131,11 +115,13 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
   FN(get_residual_norm)(size, nev, W, alg->eigVals, alg->resNorm,
                         alg->wrk1, alg->wrk2, alg->wrk3, ANorm, BNorm, alg->B);
 
-  for (uint64_t i = 0; i < nev; i++) {
-    printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-           i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+  if (alg->verbosity > 0) {
+    for (uint64_t i = 0; i < nev; i++) {
+      printf("Eigenvalue %" PRIu64 ": %.9e\t Residual Norm: %.5e\n",
+             i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+    }
+    printf("\n");
   }
-  printf("\n");
 
   uint8_t useOrtho = 0;
   alg->converged = 0;
@@ -241,13 +227,15 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
       alg->converged++;
     }
 
-    printf("Iteration %ld\t Converged Eigenpairs: %ld/%ld\n",
-           alg->iter, alg->converged, nev);
-    for (uint64_t i = 0; i < nev; i++) {
-      printf("Eigenvalue %ld: %.9e\t Residual Norm: %.5e\n",
-             i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+    if (alg->verbosity > 0) {
+      printf("Iteration %" PRIu64 "\t Converged Eigenpairs: %" PRIu64 "/%" PRIu64 "\n",
+             alg->iter, alg->converged, nev);
+      for (uint64_t i = 0; i < nev; i++) {
+        printf("Eigenvalue %" PRIu64 ": %.9e\t Residual Norm: %.5e\n",
+               i, CREAL(alg->eigVals[i]), alg->resNorm[i]);
+      }
+      printf("\n");
     }
-    printf("\n");
 
     if (alg->converged == nev) {
       break;
@@ -265,3 +253,5 @@ void FN(lobpcg)(FN(lobpcg_t) *alg) {
 #undef EPS_TOL
 #undef CABS
 #undef CREAL
+#undef RABS
+#undef RSQRT
