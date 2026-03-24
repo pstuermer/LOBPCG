@@ -368,6 +368,12 @@ TEST(d_lobpcg_laplacian) {
     alg->maxIter = 500;
     alg->tol = 1e-4;
 
+    /* Deterministic initialization */
+    srand(123);
+    for (uint64_t j = 0; j < sizeSub; j++)
+      for (uint64_t i = 0; i < n; i++)
+        alg->S[i + j * n] = (f64)rand() / RAND_MAX - 0.5;
+
     d_lobpcg(alg);
 
     printf("conv=%lu iter=%lu ", (unsigned long)alg->converged,
@@ -410,6 +416,12 @@ TEST(s_lobpcg_laplacian) {
     alg->T = NULL;
     alg->maxIter = 500;
     alg->tol = 1e-3f;
+
+    /* Deterministic initialization */
+    srand(456);
+    for (uint64_t j = 0; j < sizeSub; j++)
+      for (uint64_t i = 0; i < n; i++)
+        alg->S[i + j * n] = (f32)((f64)rand() / RAND_MAX - 0.5);
 
     s_lobpcg(alg);
 

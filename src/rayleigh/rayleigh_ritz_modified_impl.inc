@@ -93,15 +93,16 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
       goto cleanup;
     }
 
-    /* Extract Z2 (n_remainder x nx) from rows [nx:sizeSub] of first nx eigvecs */
+    /* Extract Z_{1,⊥}^T (n_remainder x nx): transpose of first nx rows of
+     * unwanted eigenvectors. Duersch Alg. 7: QR basis for col(Z_{1,⊥}^T). */
     memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
     for (uint64_t i = 0; i < nx; i++) {
       for (uint64_t j = 0; j < n_remainder; j++) {
-        wrk2[j + i*n_remainder] = wrk1[(nx + j) + i*sizeSub];
+        wrk2[j + i*n_remainder] = wrk1[i + (nx + j)*sizeSub];
       }
     }
 
-    /* QR factorization of Z2 (n_remainder x nx) — tall matrix */
+    /* QR factorization of Z_{1,⊥}^T (n_remainder x nx) — tall matrix */
     if (0 != FN(geqrf)(n_remainder, nx, wrk2, tau)) {
       fprintf(stderr, "rayleigh_ritz_modified(ortho): geqrf failed\n");
       goto cleanup;
@@ -121,25 +122,12 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     /* wrk2 now contains Q_orth (n_remainder x nx) */
 
     /* Cx = first nx columns of eigenvectors (no D_inv_R transform) */
-    memset(Cx, 0, sizeSub * nx * sizeof(CTYPE));
-    for (uint64_t j = 0; j < nx; j++) {
-      for (uint64_t i = 0; i < sizeSub; i++) {
-        Cx[i + j*sizeSub] = wrk1[i + j*sizeSub];
-      }
-    }
+    memcpy(Cx, wrk1, sizeSub * nx * sizeof(CTYPE));
 
-    /* Extract full eigvecs [nx:end, nx:end] for Cp computation
-     * wrk3 = all sizeSub rows of eigvecs nx..sizeSub (n_remainder cols) */
-    memset(wrk3, 0, sizeSub * n_remainder * sizeof(CTYPE));
-    for (uint64_t j = 0; j < n_remainder; j++) {
-      for (uint64_t i = 0; i < sizeSub; i++) {
-        wrk3[i + j*sizeSub] = wrk1[i + (nx + j)*sizeSub];
-      }
-    }
-
-    /* Cp = wrk3 * Q_orth  (sizeSub x n_remainder) * (n_remainder x nx) -> (sizeSub x nx) */
+    /* Cp = V_⊥ * Q_orth where V_⊥ = [Z_{1,⊥}; Z_{2,⊥}] = wrk1 columns [nx:sizeSub]
+     * V_⊥ is contiguous at &wrk1[nx*sizeSub], no copy needed */
     memset(Cp, 0, sizeSub * nx * sizeof(CTYPE));
-    FN(gemm_nn)(sizeSub, nx, n_remainder, (CTYPE)1, wrk3, wrk2, (CTYPE)0, Cp);
+    FN(gemm_nn)(sizeSub, nx, n_remainder, (CTYPE)1, &wrk1[nx*sizeSub], wrk2, (CTYPE)0, Cp);
 
     /* Copy eigenvalues */
     for (uint64_t i = 0; i < nx; i++) {
@@ -225,12 +213,7 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
   /* wrk1 now contains eigenvectors (column-major) */
 
   /* 10. Extract Cx = D_inv_R * [first nx columns of wrk1] */
-  memset(Cx, 0, sizeSub * nx * sizeof(CTYPE));
-  for (uint64_t j = 0; j < nx; j++) {
-    for (uint64_t i = 0; i < sizeSub; i++) {
-      Cx[i + j*sizeSub] = wrk1[i + j*sizeSub];
-    }
-  }
+  memcpy(Cx, wrk1, sizeSub * nx * sizeof(CTYPE));
   /* Cx = D_inv_R * Cx */
   FN(gemm_nn)(sizeSub, nx, sizeSub, (CTYPE)1, wrk3, Cx, (CTYPE)0, wrk2);
   memcpy(Cx, wrk2, sizeSub * nx * sizeof(CTYPE));
@@ -242,15 +225,16 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
     goto cleanup;
   }
 
-  /* 11. Extract Z2 (n_remainder x nx) — rows [nx:sizeSub] of first nx eigenvectors */
+  /* 11. Extract Z_{1,⊥}^T (n_remainder x nx): transpose of first nx rows of
+   *     unwanted eigenvectors. Duersch Alg. 7: QR basis for col(Z_{1,⊥}^T). */
   memset(wrk2, 0, n_remainder * nx * sizeof(CTYPE));
   for (uint64_t i = 0; i < nx; i++) {
     for (uint64_t j = 0; j < n_remainder; j++) {
-      wrk2[j + i*n_remainder] = wrk1[(nx + j) + i*sizeSub];
+      wrk2[j + i*n_remainder] = wrk1[i + (nx + j)*sizeSub];
     }
   }
 
-  /* 12. QR factorization of Z2 (n_remainder x nx) — tall matrix */
+  /* 12. QR factorization of Z_{1,⊥}^T (n_remainder x nx) — tall matrix */
   if (0 != FN(geqrf)(n_remainder, nx, wrk2, tau)) {
     fprintf(stderr, "rayleigh_ritz_modified: geqrf failed\n");
     goto cleanup;
@@ -269,13 +253,8 @@ void FN(rayleigh_ritz_modified)(const uint64_t size, const uint64_t nx,
   }
   /* wrk2 now contains Q_orth (n_remainder x nx) */
 
-  /* 13. Extract [Z2_full] = rows [nx : sizeSub] of eigenvectors nx onwards */
-  memset(Cp, 0, sizeSub * n_remainder * sizeof(CTYPE));
-  for (uint64_t j = 0; j < n_remainder; j++) {
-    for (uint64_t i = 0; i < sizeSub; i++) {
-      Cp[i + j*sizeSub] = wrk1[i + (nx + j)*sizeSub];
-    }
-  }
+  /* 13. V_⊥ = [Z_{1,⊥}; Z_{2,⊥}] = wrk1 columns [nx:sizeSub], contiguous */
+  memcpy(Cp, &wrk1[nx*sizeSub], sizeSub * n_remainder * sizeof(CTYPE));
 
   /* 14. Cp_tmp = D_inv_R * Cp */
   FN(gemm_nn)(sizeSub, n_remainder, sizeSub, (CTYPE)1, wrk3, Cp, (CTYPE)0, wrk1);
