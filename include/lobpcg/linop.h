@@ -13,7 +13,7 @@ typedef struct {
 #define DEFINE_LINEAR_OPERATOR(type, suffix)				\
   typedef struct LinearOperator_##suffix##_t LinearOperator_##suffix##_t; \
   typedef void (*matvec_func_##suffix##_t)(const LinearOperator_##suffix##_t *op, \
-					   const type *restrict x,	\
+					   type *restrict x,	\
 					   type *restrict y);		\
   typedef void (*cleanup_func_##suffix##_t)(linop_ctx_t *ctx);	\
 									\
@@ -47,8 +47,8 @@ typedef struct {
   }									\
 									\
   static inline void linop_apply_##suffix(const LinearOperator_##suffix##_t *op,	\
-					  const type *restrict x,	\
-					  type *restrict y) {		\
+				    type *restrict x,			\
+				    type *restrict y) {			\
     op->matvec(op, x, y);						\
   }
 
